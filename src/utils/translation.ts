@@ -75,13 +75,23 @@ export function parsePastedHeaders(text: string): string[] {
     const last = fieldList.substring(start).trim()
     if (last) parts.push(last)
 
-    // 4) 对每个部分提取字段名：优先取 AS 别名，再取 ) alias（无AS关键字），否则去掉表前缀
+    // 4) 对每个部分提取字段名：
+    //    优先取 AS 别名
+    //    再取 ) alias（无AS关键字，如 SUM(...) tz_m3）
+    //    再取 table.field alias 或 field alias（无AS关键字，如 gh01.staff_code xx1_id）
+    //    否则去掉表前缀
     return parts.map(p => {
       const asMatch = p.match(/\bAS\s+["`]?(\w+)["`]?\s*$/i)
       if (asMatch) return asMatch[1]
       // 匹配括号闭合后空格跟别名，如 SUM(...) tz_m3
-      const spaceAlias = p.match(/\)\s+(\w+)\s*$/)
-      if (spaceAlias) return spaceAlias[1]
+      const parenAlias = p.match(/\)\s+(\w+)\s*$/)
+      if (parenAlias) return parenAlias[1]
+      // 匹配标识符后空格跟别名（无AS），如 gh01.staff_code xx1_id 或 staff_code xx1_id
+      // 排除关键字（case/when/then/else/end/from/where/and/or/not/in/on/left/join/as）
+      const spaceAlias = p.match(/^["`]?[\w.]+["`]?\s+(\w+)\s*$/)
+      if (spaceAlias && !/^(case|when|then|else|end|from|where|and|or|not|in|on|left|right|join|inner|outer|full|cross|as|between|like|is|null|exists|group|having|order|limit|union|all|distinct|select|into|values|set|update|delete|insert|create|drop|alter|table|index|view)$/.test(spaceAlias[1].toLowerCase())) {
+        return spaceAlias[1]
+      }
       return stripDotPrefix(p.trim())
     })
   }

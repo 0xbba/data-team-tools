@@ -83,6 +83,11 @@ export const Api = {
   async update(id: number, item: Partial<Pick<MappingItem, 'original' | 'chinese'>>) { return request(`/api/translations/${id}`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(item) }) },
   async delete(id: number) { return request(`/api/translations/${id}`, { method: 'DELETE' }) },
   async importItems(items: Omit<MappingItem, '_dbId' | '_deleted'>[]) { return request<{ inserted: number; skipped: number }>('/api/translations/import', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ items }) }) },
+  async lookup(fields: string[]): Promise<MappingItem[]> {
+    if (fields.length === 0) return []
+    const raw: any[] = await request('/api/translations/lookup', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ fields }) })
+    return mapTranslations(raw)
+  },
   async logs(recordId?: number, fieldName?: string, page?: number): Promise<{ data: LogEntry[]; total: number }> {
     const raw = await request<any>('/api/logs' + `?page=${page || 1}&pageSize=5` + (recordId ? `&recordId=${recordId}` : '') + (fieldName ? `&fieldName=${encodeURIComponent(fieldName)}` : ''))
     return mapPageResponse(raw, mapLogEntry)

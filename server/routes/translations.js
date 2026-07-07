@@ -142,6 +142,27 @@ router.delete('/:id', requirePerm('manage_delete'), async (req, res) => {
   }
 })
 
+// 按字段名批量查询翻译（用于实时匹配未命中的字段）
+router.post('/lookup', async (req, res) => {
+  try {
+    const { fields } = req.body
+    if (!Array.isArray(fields) || fields.length === 0) return res.json([])
+    // 用 ANY 批量查询，避免 N+1
+    const result = await pool.query(
+      'SELECT id, field_name, field_translation FROM dt_field_translation WHERE field_name = ANY($1) AND is_visible = true',
+      [fields]
+    )
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      original: r.field_name,
+      chinese: r.field_translation,
+    })))
+  } catch (err) {
+    console.error('[POST /api/translations/lookup]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // 批量导入
 router.post('/import', requirePerm('manage_import'), async (req, res) => {
   const client = await pool.connect()
