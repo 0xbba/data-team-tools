@@ -1,0 +1,43 @@
+services:
+  # ====== PostgreSQL 数据库 ======
+  db:
+    image: postgres:16-alpine
+    container_name: data-team-tools-db
+    environment:
+      POSTGRES_USER: ${PGUSER:-dtapp}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-dtapp123}
+      POSTGRES_DB: ${PGDATABASE:-data_team_tools}
+    volumes:
+      - dt_pgdata:/var/lib/postgresql/data
+    ports:
+      - "${PGPORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-dtapp}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ====== 应用服务 ======
+  app:
+    build: .
+    image: data-team-tools:latest
+    container_name: data-team-tools
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3456}:3456"
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=${PGUSER:-dtapp}
+      - PGPASSWORD=${PGPASSWORD:-dtapp123}
+      - PGDATABASE=${PGDATABASE:-data_team_tools}
+      - PGSCHEMA=${PGSCHEMA:-public}
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+      - PORT=3456
+    restart: unless-stopped
+
+volumes:
+  dt_pgdata:

@@ -1,0 +1,284 @@
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import type React from 'react'
+import { Api } from '../api'
+import { loadMappingFromStorage, saveMappingToStorage } from '../utils/storage'
+import { buildTranslatedColumns, displayTranslation, parsePastedHeaders, parseMappingXLSX } from '../utils/translation'
+import { timestamp } from '../utils/format'
+import * as XLSX from 'xlsx'
+import type { MappingItem, ColumnData, BatchParseItem } from '../types'
+
+export interface UseMappingReturn {
+  // 状态
+  mappingData: MappingItem[]
+  columns: ColumnData[]
+  targetFileName: string
+  pasteValue: string
+  copied: boolean
+  batchTransOpen: boolean
+  batchTransText: string
+  copiedAlias: boolean
+
+  // 设置器
+  setMappingData: React.Dispatch<React.SetStateAction<MappingItem[]>>
+  setColumns: (c: ColumnData[]) => void
+  setTargetFileName: (f: string) => void
+  setPasteValue: (v: string) => void
+  setCopied: (v: boolean) => void
+  setBatchTransOpen: (v: boolean) => void
+  setBatchTransText: (v: string) => void
+  setCopiedAlias: (v: boolean) => void
+
+  // 数据操作
+  fetchDbMapping: () => void
+  persistMapping: () => void
+
+  // 操作
+  handleImportFile: (file: File) => Promise<void>
+  handlePasteChange: (val: string) => void
+  selectAlternative: (colIdx: number, altIdx: number) => void
+  updateTranslation: (colIdx: number, val: string) => void
+  canSaveCol: (colIdx: number) => boolean
+  saveToMapping: (colIdx: number) => void
+  saveAllNewToMapping: () => void
+  handleCopyTranslation: () => void
+  handleCopyAlias: () => void
+
+  // 计算属性
+  matchedColumns: ColumnData[]
+  multiMatchColumns: ColumnData[]
+  unmatchedColumns: ColumnData[]
+  translatedCount: number
+  newMappingCount: number
+  batchParsedResult: BatchParseItem[]
+  handleBatchTransCopy: () => void
+  handleBatchTransConfirm: () => void
+
+  // 导出
+  handleExportFull: () => void
+
+  // 文件上传
+  draggerCustomRequest: import('antd').UploadProps['customRequest']
+}
+
+export function useMapping(
+  dataMode: string,
+  offlineMode: boolean,
+  dbUrl: string,
+  message: { success: (msg: string) => void; error: (msg: string) => void; warning: (msg: string) => void }
+): UseMappingReturn {
+  const [mappingData, setMappingData] = useState<MappingItem[]>([])
+  const [columns, setColumns] = useState<ColumnData[]>([])
+  const [targetFileName, setTargetFileName] = useState('')
+  const [pasteValue, setPasteValue] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [batchTransOpen, setBatchTransOpen] = useState(false)
+  const [batchTransText, setBatchTransText] = useState('')
+  const [copiedAlias, setCopiedAlias] = useState(false)
+
+  // 加载数据库映射数据
+  const fetchDbMapping = useCallback(async () => {
+    if (dataMode === 'local' || offlineMode) { setMappingData(loadMappingFromStorage()); return }
+    try {
+      const data = await Api.list()
+      setMappingData(data || [])
+    } catch { /* ignore */ }
+  }, [dataMode, offlineMode])
+
+  // 持久化映射数据
+  const persistMapping = useCallback(() => {
+    if (dataMode === 'local' || offlineMode) { saveMappingToStorage(mappingData) }
+  }, [dataMode, offlineMode, mappingData])
+
+  // 初始化加载
+  useEffect(() => { fetchDbMapping() }, [fetchDbMapping])
+
+  // mappingData 变化时更新 columns 的 alternatives
+  useEffect(() => {
+    setColumns(prev => prev.map(c => {
+      const alts = mappingData.filter(m => m.original === c.original && !m._deleted)
+      // 有匹配但未选中时自动选中第一个
+      if (alts.length > 0 && c.selectedAlt < 0) {
+        return { ...c, alternatives: alts, selectedAlt: 0, translated: alts[0].chinese }
+      }
+      return {
+        ...c,
+        alternatives: alts,
+        selectedAlt: c.selectedAlt >= alts.length ? -1 : c.selectedAlt,
+      }
+    }))
+  }, [mappingData])
+
+  // ============ 翻译页操作 ============
+  const handleImportFile = useCallback(async (file: File) => {
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+      const items = parseMappingXLSX(wb)
+      if (items.length === 0) { message.warning('未识别到有效数据'); return }
+      let added = 0
+      const newItems: MappingItem[] = []
+      for (const item of items) {
+        const existing = mappingData.findIndex(m => m.original === item.original && !m._deleted)
+        if (existing >= 0) { mappingData[existing].chinese = item.chinese; added++ }
+        else { newItems.push(item); added++ }
+      }
+      setMappingData([...mappingData, ...newItems])
+      persistMapping()
+      message.success(`导入完成，共 ${added} 条`)
+    } catch (err: any) { message.error('导入失败: ' + err.message) }
+  }, [mappingData, dataMode, offlineMode, dbUrl, persistMapping, message])
+
+  const handlePasteChange = useCallback((val: string) => {
+    setPasteValue(val)
+    if (!val.trim()) { setColumns([]); return }
+    const fields = parsePastedHeaders(val)
+    if (fields.length > 0) setColumns(buildTranslatedColumns(fields, mappingData))
+  }, [mappingData])
+
+  const selectAlternative = useCallback((colIdx: number, altIdx: number) => {
+    setColumns(prev => prev.map((c, i) => i === colIdx ? { ...c, selectedAlt: altIdx } : c))
+  }, [])
+
+  const updateTranslation = useCallback((colIdx: number, val: string) => {
+    setColumns(prev => prev.map((c, i) => i === colIdx ? { ...c, translated: val, selectedAlt: -1 } : c))
+  }, [])
+
+  const canSaveCol = useCallback((colIdx: number): boolean => {
+    const col = columns[colIdx]
+    return col.translated !== '' && col.original !== '' && !mappingData.some(m => m.original === col.original && m.chinese === col.translated && !m._deleted)
+  }, [columns, mappingData])
+
+  const saveToMapping = useCallback((colIdx: number) => {
+    const col = columns[colIdx]
+    if (!canSaveCol(colIdx)) return
+    const newItem: MappingItem = { original: col.original, chinese: col.translated }
+    setMappingData(prev => [...prev, newItem])
+    setColumns(prev => prev.map((c, i) => i === colIdx ? { ...c, alternatives: [...c.alternatives, newItem], selectedAlt: c.alternatives.length } : c))
+    persistMapping()
+  }, [columns, canSaveCol, persistMapping])
+
+  const saveAllNewToMapping = useCallback(() => {
+    const newItems: MappingItem[] = []
+    setColumns(prev => prev.map(c => {
+      if (c.translated && c.original && !mappingData.some(m => m.original === c.original && m.chinese === c.translated && !m._deleted)) {
+        const item = { original: c.original, chinese: c.translated }
+        newItems.push(item)
+        return { ...c, alternatives: [...c.alternatives, item], selectedAlt: c.alternatives.length }
+      }
+      return c
+    }))
+    if (newItems.length > 0) { setMappingData(prev => [...prev, ...newItems]); persistMapping(); message.success(`保存 ${newItems.length} 条新翻译`) }
+  }, [columns, mappingData, persistMapping, message])
+
+  const handleCopyTranslation = useCallback(() => {
+    // 只要翻译结果行，Tab 分隔（对应原字段顺序）
+    const text = columns.map(c => displayTranslation(c)).join('\t')
+    navigator.clipboard.writeText(text).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    })
+    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  }, [columns])
+
+  const handleCopyAlias = useCallback(() => {
+    const lines = columns.map(c => {
+      const t = displayTranslation(c)
+      return t !== c.original ? `    ${c.original} AS \`${t}\`` : `    ${c.original}`
+    })
+    const tableName = targetFileName || 'table_name'
+    const sql = `SELECT \n${lines.join(',\n')}\nFROM ${tableName}`
+    navigator.clipboard.writeText(sql).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = sql; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    })
+    setCopiedAlias(true); setTimeout(() => setCopiedAlias(false), 1500)
+  }, [columns, targetFileName])
+
+  // 计算属性
+  const matchedColumns = useMemo(() => columns.filter(c => displayTranslation(c) !== c.original), [columns])
+  const multiMatchColumns = useMemo(() => columns.filter(c => c.alternatives.length > 1), [columns])
+  const unmatchedColumns = useMemo(() => columns.filter(c => displayTranslation(c) === c.original && c.original !== ''), [columns])
+  const translatedCount = matchedColumns.length
+  const newMappingCount = columns.filter((_, idx) => canSaveCol(idx)).length
+
+  // 批量翻译
+  const batchParsedResult = useMemo((): BatchParseItem[] => {
+    if (!batchTransText.trim()) return []
+    const lines = batchTransText.trim().split(/\n+/).map(l => l.trim()).filter(Boolean)
+    return lines.map(line => {
+      // 支持 Tab、逗号、等号、空格分隔（字段名在前，翻译在后）
+      const parts = line.split(/[\t,=]+/).map(s => s.trim()).filter(Boolean)
+      const original = parts[0] || ''
+      const chinese = parts.length > 1 ? parts[1] : ''
+      // 匹配到 unmatchedColumns 中的索引
+      const matchedIdx = unmatchedColumns.findIndex(c => c.original === original)
+      return { original, chinese, matchedIdx }
+    })
+  }, [batchTransText, unmatchedColumns])
+
+  const handleBatchTransCopy = useCallback(() => {
+    navigator.clipboard.writeText(unmatchedColumns.map(c => c.original).join('\n'))
+    message.success('已复制无匹配字段列表')
+  }, [unmatchedColumns, message])
+
+  const handleBatchTransConfirm = useCallback(() => {
+    const newItems: MappingItem[] = []
+    setColumns(prev => prev.map(c => {
+      const result = batchParsedResult.find(r => r.original === c.original)
+      if (result && result.chinese && c.original !== result.chinese) {
+        const item = { original: c.original, chinese: result.chinese }
+        newItems.push(item)
+        return { ...c, translated: result.chinese, alternatives: [...c.alternatives, item], selectedAlt: c.alternatives.length }
+      }
+      return c
+    }))
+    if (newItems.length > 0) {
+      setMappingData(mp => [...mp, ...newItems])
+      if (dataMode !== 'local' && !offlineMode) {
+        Api.importItems(newItems).then(res => {
+          message.success(`批量翻译完成，新增 ${res.inserted} 条，跳过 ${res.skipped} 条`)
+          fetchDbMapping()
+        }).catch(() => message.error('批量翻译写入数据库失败'))
+      } else {
+        persistMapping()
+        message.success(`批量翻译完成，新增 ${newItems.length} 条`)
+      }
+    }
+    setBatchTransOpen(false); setBatchTransText('')
+  }, [batchParsedResult, dataMode, offlineMode, persistMapping, fetchDbMapping, message])
+
+  const handleExportFull = useCallback(() => {
+    const rows = columns.map(c => ({ '英文字段': c.original, '中文名称': displayTranslation(c) }))
+    const wsData = [['英文字段', '中文名称'], ...rows.map(r => [r['英文字段'], r['中文名称']])]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    XLSX.utils.book_append_sheet(wb, ws, '翻译结果')
+    XLSX.writeFile(wb, `翻译结果_${targetFileName || timestamp()}.xlsx`)
+  }, [columns, targetFileName])
+
+  // 文件上传
+  const parseTargetFile = useCallback(async (file: File) => {
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
+      if (rows.length < 2) { message.warning('文件内容不足'); return }
+      const headers = rows[0].map(String).map(s => s.trim()).filter(Boolean)
+      setColumns(buildTranslatedColumns(headers, mappingData))
+      setTargetFileName(file.name.replace(/\.(xlsx?|csv)$/i, ''))
+    } catch (err: any) { message.error('解析失败: ' + err.message) }
+  }, [mappingData, message])
+
+  const draggerCustomRequest: import('antd').UploadProps['customRequest'] = useCallback(({ file, onSuccess }) => {
+    parseTargetFile(file as File).then(() => onSuccess?.({}))
+  }, [parseTargetFile])
+
+  return {
+    mappingData, columns, targetFileName, pasteValue, copied, batchTransOpen, batchTransText, copiedAlias,
+    setMappingData, setColumns, setTargetFileName, setPasteValue, setCopied, setBatchTransOpen, setBatchTransText, setCopiedAlias,
+    fetchDbMapping, persistMapping,
+    handleImportFile, handlePasteChange, selectAlternative, updateTranslation, canSaveCol, saveToMapping, saveAllNewToMapping,
+    handleCopyTranslation, handleCopyAlias,
+    matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount,
+    batchParsedResult, handleBatchTransCopy, handleBatchTransConfirm,
+    handleExportFull,
+    draggerCustomRequest,
+  }
+}

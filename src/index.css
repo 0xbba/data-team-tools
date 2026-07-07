@@ -1,0 +1,49 @@
+/* 替代 Tailwind animate-spin */
+@keyframes icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+@layer base {
+  ::selection {
+    background: rgba(22, 119, 255, 0.15);
+  }
+
+  :focus-visible {
+    outline: 2px solid #1677ff;
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d9d9d9;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #bfbfbf;
+  }
+
+  body {
+    overflow: hidden !important;
+    padding-right: 0 !important;
+  }
+
+  /* 去掉 Menu 最后一个菜单项的底部间距，使按钮上下留白对称 */
+  .ant-menu-inline .ant-menu-item:last-child {
+    margin-bottom: 0 !important;
+  }
+
+}
