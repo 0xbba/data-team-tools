@@ -110,6 +110,12 @@ export const Api = {
     const raw = await request<any>(url)
     return mapPageResponse(raw, mapLedgerRecord)
   },
+  async ledgerExportAll(search?: string): Promise<LedgerRecord[]> {
+    let url = '/api/ledger?page=1&pageSize=999999'
+    if (search) url += `&search=${encodeURIComponent(search)}`
+    const raw = await request<any>(url)
+    return (raw.rows ?? raw.data ?? []).map(mapLedgerRecord)
+  },
   async ledgerAdd(record: Omit<LedgerRecord, '_dbId' | '_deleted'>) {
     // API expects snake_case
     const body = {

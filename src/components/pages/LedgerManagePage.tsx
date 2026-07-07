@@ -142,18 +142,28 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
         {dataMode === 'database' && !offlineMode && (
           <Button type="default" size="small" onClick={fetchLedger} disabled={dbLoading} icon={<ReloadOutlined style={{ fontSize: 14 }} className={dbLoading ? 'icon-spin' : ''} />}>刷新</Button>
         )}
-        <Button type="dashed" size="small" onClick={() => {
-          if (ledgerData.length === 0) { message.warning('暂无数据可导出'); return }
-          const ws = XLSX.utils.json_to_sheet(ledgerData.map((r, i) => ({
-            '序号': String(i + 1), '数据单号': r.requestNo, '申请时间': r.requestTime,
-            '申请员工': r.applicant, '申请员工电话': r.applicantPhone, '申请部门': r.applicantDept,
-            '申请标题': r.requestTitle, '申请事由': r.requestReason, '申请数据内容': r.requestDataContent,
-            '处理人': r.processor, '完成时间': r.finishTime || '', '创建时间': r.createDate || '',
-          })))
-          const wb = XLSX.utils.book_new()
-          XLSX.utils.book_append_sheet(wb, ws, '数据需求台账')
-          XLSX.writeFile(wb, `数据需求台账_${timestamp()}.xlsx`)
-        }} disabled={ledgerData.length === 0} icon={<DownloadOutlined style={{ fontSize: 14 }} />}>导出Excel</Button>
+        <Button type="dashed" size="small" onClick={async () => {
+          try {
+            let allData: LedgerRecord[]
+            if (dataMode === 'database' && !offlineMode) {
+              message.info('正在导出全部台账数据...')
+              allData = await Api.ledgerExportAll(ledgerHook.ledgerSearch || undefined)
+            } else {
+              allData = ledgerData.filter(r => !r._deleted)
+            }
+            if (allData.length === 0) { message.warning('暂无数据可导出'); return }
+            const ws = XLSX.utils.json_to_sheet(allData.map((r, i) => ({
+              '序号': String(i + 1), '数据单号': r.requestNo, '申请时间': r.requestTime,
+              '申请员工': r.applicant, '申请员工电话': r.applicantPhone, '申请部门': r.applicantDept,
+              '申请标题': r.requestTitle, '申请事由': r.requestReason, '申请数据内容': r.requestDataContent,
+              '处理人': r.processor, '完成时间': r.finishTime || '', '创建时间': r.createDate || '',
+            })))
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, '数据需求台账')
+            XLSX.writeFile(wb, `数据需求台账_${timestamp()}.xlsx`)
+            message.success(`已导出 ${allData.length} 条记录`)
+          } catch (e: any) { message.error(e.message || '导出失败') }
+        }} disabled={ledgerTotal === 0 && ledgerData.length === 0} icon={<DownloadOutlined style={{ fontSize: 14 }} />}>导出Excel</Button>
         {(hasPerm('ledger_delete') || hasPerm('ledger_restore')) && !offlineMode && dataMode === 'database' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.8rem', color: 'rgba(0,0,0,0.65)' }}>
             <Switch size="small" checked={showDeletedLedger} onChange={setShowDeletedLedger} />

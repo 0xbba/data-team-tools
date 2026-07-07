@@ -1,2 +1,10 @@
 @echo off
-powershell -NoProfile -Command "& { $env:PATH = $env:PATH + ';C:\Users\Administrator\.local\share\TeleAgent\runtimes\node'; $env:PGPORT = '8232'; Set-Location \"%~dp0.\"; node server.js }"
+set PGPORT=5432
+set PGUSER=dtapp
+set PGPASSWORD=dtapp123
+set PGDATABASE=data_team_tools
+set PGSCHEMA=public
+set PATH=%PATH%;C:\Users\Administrator\.local\share\TeleAgent\runtimes\node
+cd /d "%~dp0"
+node server.js
+pause

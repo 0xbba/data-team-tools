@@ -19,6 +19,9 @@ server/public
 # Temp/test files
 .temp/
 
+# Dev scripts (contain local credentials)
+start-api-dev.bat
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
