@@ -27,6 +27,7 @@ export interface UseMappingReturn {
   setBatchTransOpen: (v: boolean) => void
   setBatchTransText: (v: string) => void
   setCopiedAlias: (v: boolean) => void
+  setOriginalDataRows: React.Dispatch<React.SetStateAction<any[][]>>
 
   // 数据操作
   fetchDbMapping: () => void
@@ -74,6 +75,8 @@ export function useMapping(
   const [batchTransOpen, setBatchTransOpen] = useState(false)
   const [batchTransText, setBatchTransText] = useState('')
   const [copiedAlias, setCopiedAlias] = useState(false)
+  // 存储导入文件的原始数据行（不含表头），导出时保留
+  const [originalDataRows, setOriginalDataRows] = useState<any[][]>([])
 
   // 加载数据库映射数据
   const fetchDbMapping = useCallback(async () => {
@@ -153,13 +156,17 @@ export function useMapping(
 
   const handlePasteChange = useCallback((val: string) => {
     setPasteValue(val)
-    if (!val.trim()) { setColumns([]); return }
+    if (!val.trim()) { setColumns([]); setOriginalDataRows([]); return }
     const fields = parsePastedHeaders(val)
-    if (fields.length > 0) setColumns(buildTranslatedColumns(fields, mappingData))
+    if (fields.length > 0) { setColumns(buildTranslatedColumns(fields, mappingData)); setOriginalDataRows([]) }
   }, [mappingData])
 
   const selectAlternative = useCallback((colIdx: number, altIdx: number) => {
-    setColumns(prev => prev.map((c, i) => i === colIdx ? { ...c, selectedAlt: altIdx } : c))
+    setColumns(prev => prev.map((c, i) => {
+      if (i !== colIdx) return c
+      const alt = c.alternatives[altIdx]
+      return { ...c, selectedAlt: altIdx, translated: alt ? alt.chinese : c.translated }
+    }))
   }, [])
 
   const updateTranslation = useCallback((colIdx: number, val: string) => {
@@ -269,13 +276,15 @@ export function useMapping(
   }, [batchParsedResult, dataMode, offlineMode, persistMapping, fetchDbMapping, message])
 
   const handleExportFull = useCallback(() => {
-    const rows = columns.map(c => ({ '英文字段': c.original, '中文名称': displayTranslation(c) }))
-    const wsData = [['英文字段', '中文名称'], ...rows.map(r => [r['英文字段'], r['中文名称']])]
+    // 横向布局：第一行字段名，第二行翻译，后续行原数据
+    const headerRow = columns.map(c => c.original)
+    const translationRow = columns.map(c => displayTranslation(c))
+    const wsData = [headerRow, translationRow, ...originalDataRows]
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet(wsData)
     XLSX.utils.book_append_sheet(wb, ws, '翻译结果')
     XLSX.writeFile(wb, `翻译结果_${targetFileName || timestamp()}.xlsx`)
-  }, [columns, targetFileName])
+  }, [columns, originalDataRows, targetFileName])
 
   // 文件上传
   const parseTargetFile = useCallback(async (file: File) => {
@@ -286,6 +295,7 @@ export function useMapping(
       if (rows.length < 2) { message.warning('文件内容不足'); return }
       const headers = rows[0].map(String).map(s => s.trim()).filter(Boolean)
       setColumns(buildTranslatedColumns(headers, mappingData))
+      setOriginalDataRows(rows.slice(1).map(r => r.map(String)))
       setTargetFileName(file.name.replace(/\.(xlsx?|csv)$/i, ''))
     } catch (err: any) { message.error('解析失败: ' + err.message) }
   }, [mappingData, message])
@@ -296,7 +306,7 @@ export function useMapping(
 
   return {
     mappingData, columns, targetFileName, pasteValue, copied, batchTransOpen, batchTransText, copiedAlias,
-    setMappingData, setColumns, setTargetFileName, setPasteValue, setCopied, setBatchTransOpen, setBatchTransText, setCopiedAlias,
+    setMappingData, setColumns, setTargetFileName, setPasteValue, setCopied, setBatchTransOpen, setBatchTransText, setCopiedAlias, setOriginalDataRows,
     fetchDbMapping, persistMapping,
     handleImportFile, handlePasteChange, selectAlternative, updateTranslation, canSaveCol, saveToMapping, saveAllNewToMapping,
     handleCopyTranslation, handleCopyAlias,

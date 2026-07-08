@@ -19,7 +19,7 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
     mappingData, columns, targetFileName, pasteValue, copied, copiedAlias,
     batchTransOpen, batchTransText, batchParsedResult,
     setColumns, setPasteValue, setTargetFileName, setBatchTransOpen, setBatchTransText,
-    setMappingData,
+    setMappingData, setOriginalDataRows,
     handlePasteChange, handleCopyTranslation, handleCopyAlias,
     handleExportFull,
     matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount,
@@ -86,7 +86,7 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
               )}
             </>
           )}
-          <Button type="default" size="small" onClick={() => { setPasteValue(''); setColumns([]); setTargetFileName('') }} icon={<CloseOutlined style={{ fontSize: 14 }} />}>清空</Button>
+          <Button type="default" size="small" onClick={() => { setPasteValue(''); setColumns([]); setTargetFileName(''); setOriginalDataRows([]) }} icon={<CloseOutlined style={{ fontSize: 14 }} />}>清空</Button>
           {pasteValue.trim() && <Tag color="processing">{parsePastedHeaders(pasteValue).length} 个字段</Tag>}
           {targetFileName && !pasteValue.trim() && (
             <>
