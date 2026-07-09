@@ -16,11 +16,11 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
   const { message, dataMode, fetchDbMapping, persistMapping } = useAppContext()
 
   const {
-    mappingData, columns, targetFileName, pasteValue, copied, copiedAlias,
+    mappingData, columns, targetFileName, pasteValue, copied, copiedAlias, copiedComment,
     batchTransOpen, batchTransText, batchParsedResult,
     setColumns, setPasteValue, setTargetFileName, setBatchTransOpen, setBatchTransText,
     setMappingData, setOriginalDataRows,
-    handlePasteChange, handleCopyTranslation, handleCopyAlias,
+    handlePasteChange, handleCopyTranslation, handleCopyAlias, handleCopyComment,
     handleExportFull,
     matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount,
     handleBatchTransCopy, handleBatchTransConfirm,
@@ -71,6 +71,11 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
                 icon={copiedAlias ? <CheckOutlined style={{ fontSize: 14 }} /> : <CopyOutlined style={{ fontSize: 14 }} />}
               >
                 {copiedAlias ? '已复制' : '复制别名'}
+              </Button>
+              <Button type="dashed" size="small" onClick={handleCopyComment} disabled={translatedCount === 0}
+                icon={copiedComment ? <CheckOutlined style={{ fontSize: 14 }} /> : <CopyOutlined style={{ fontSize: 14 }} />}
+              >
+                {copiedComment ? '已复制' : '复制Comment'}
               </Button>
               <Button type="dashed" size="small" onClick={handleExportFull} disabled={translatedCount === 0 || targetFileName === '手动粘贴'}
                 icon={<DownloadOutlined style={{ fontSize: 14 }} />}

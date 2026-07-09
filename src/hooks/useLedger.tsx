@@ -447,6 +447,9 @@ export function useLedger(
   useEffect(() => {
     if (!ledgerPasteText.trim()) { setLedgerParsed(null); return }
     setLedgerParsed(parseLedgerText(ledgerPasteText))
+    // 重新解析时清空提取记录的临时填写
+    setExtractionRecordCount('')
+    setExtractionSupervisor('')
   }, [ledgerPasteText])
 
   return {

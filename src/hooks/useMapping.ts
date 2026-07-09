@@ -17,6 +17,7 @@ export interface UseMappingReturn {
   batchTransOpen: boolean
   batchTransText: string
   copiedAlias: boolean
+  copiedComment: boolean
 
   // 设置器
   setMappingData: React.Dispatch<React.SetStateAction<MappingItem[]>>
@@ -43,6 +44,7 @@ export interface UseMappingReturn {
   saveAllNewToMapping: () => void
   handleCopyTranslation: () => void
   handleCopyAlias: () => void
+  handleCopyComment: () => void
 
   // 计算属性
   matchedColumns: ColumnData[]
@@ -214,13 +216,36 @@ export function useMapping(
       const t = displayTranslation(c)
       return t !== c.original ? `    ${c.original} AS \`${t}\`` : `    ${c.original}`
     })
-    const tableName = targetFileName || 'table_name'
+    // 从粘贴内容中提取 CREATE TABLE/VIEW ... AS 的表名（支持 schema.table、OR REPLACE、IF NOT EXISTS）
+    const ctMatch = pasteValue.match(/create\s+(?:or\s+replace\s+)?(?:table|view)\s+(?:if\s+not\s+exists\s+)?([\w.]+)/i)
+    const tableName = ctMatch ? ctMatch[1] : (targetFileName || 'table_name')
     const sql = `SELECT \n${lines.join(',\n')}\nFROM ${tableName}`
     navigator.clipboard.writeText(sql).catch(() => {
       const ta = document.createElement('textarea'); ta.value = sql; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
     })
     setCopiedAlias(true); setTimeout(() => setCopiedAlias(false), 1500)
-  }, [columns, targetFileName])
+  }, [columns, pasteValue, targetFileName])
+
+  const [copiedComment, setCopiedComment] = useState(false)
+
+  const handleCopyComment = useCallback(() => {
+    // 从粘贴内容中提取表名（与复制别名同逻辑）
+    const ctMatch = pasteValue.match(/create\s+(?:or\s+replace\s+)?(?:table|view)\s+(?:if\s+not\s+exists\s+)?([\w.]+)/i)
+    const tableName = ctMatch ? ctMatch[1] : (targetFileName || 'table_name')
+    // 生成 COMMENT ON COLUMN 语句
+    const lines = columns
+      .filter(c => {
+        const t = displayTranslation(c)
+        return t && t !== c.original
+      })
+      .map(c => `COMMENT ON COLUMN ${tableName}.${c.original} IS '${displayTranslation(c)}';`)
+    if (lines.length === 0) { return }
+    const text = lines.join('\n')
+    navigator.clipboard.writeText(text).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    })
+    setCopiedComment(true); setTimeout(() => setCopiedComment(false), 1500)
+  }, [columns, pasteValue, targetFileName])
 
   // 计算属性
   const matchedColumns = useMemo(() => columns.filter(c => displayTranslation(c) !== c.original), [columns])
@@ -305,11 +330,11 @@ export function useMapping(
   }, [parseTargetFile])
 
   return {
-    mappingData, columns, targetFileName, pasteValue, copied, batchTransOpen, batchTransText, copiedAlias,
+    mappingData, columns, targetFileName, pasteValue, copied, batchTransOpen, batchTransText, copiedAlias, copiedComment,
     setMappingData, setColumns, setTargetFileName, setPasteValue, setCopied, setBatchTransOpen, setBatchTransText, setCopiedAlias, setOriginalDataRows,
     fetchDbMapping, persistMapping,
     handleImportFile, handlePasteChange, selectAlternative, updateTranslation, canSaveCol, saveToMapping, saveAllNewToMapping,
-    handleCopyTranslation, handleCopyAlias,
+    handleCopyTranslation, handleCopyAlias, handleCopyComment,
     matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount,
     batchParsedResult, handleBatchTransCopy, handleBatchTransConfirm,
     handleExportFull,

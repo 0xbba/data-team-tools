@@ -74,6 +74,8 @@ export default function LedgerParsePage({ ledgerHook }: LedgerParsePageProps) {
   const handleClear = () => {
     setLedgerPasteText('')
     setLedgerParsed(null)
+    setExtractionRecordCount('')
+    setExtractionSupervisor('')
   }
 
   return (
@@ -142,6 +144,10 @@ export default function LedgerParsePage({ ledgerHook }: LedgerParsePageProps) {
               <AutoComplete size="small" value={extractionSupervisor} onChange={v => setExtractionSupervisor(v)} options={supervisorOptions} placeholder="选填" style={{ width: '100%' }} filterOption={(input, option) => (option?.value ?? '').toLowerCase().includes(input.toLowerCase())} />
             </Descriptions.Item>
           </Descriptions>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <Button type="primary" size="small" onClick={handleWrite} icon={<PlusCircleOutlined style={{ fontSize: 14 }} />}>写入台账</Button>
+          </div>
         </Card>
       )}
     </div>
