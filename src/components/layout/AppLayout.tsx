@@ -126,7 +126,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           collapsed={siderCollapsed}
           theme="light"
           style={{ borderRight: '1px solid #f0f0f0' }}
-          trigger={null}
+          trigger={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onCollapse={() => onToggleSider()}
         >
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -137,14 +138,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                 onClick={({ key }) => onMenuClick(key)}
                 items={menuItems as any}
                 style={{ borderInlineEnd: 'none' }}
-              />
-            </div>
-            <div style={{ padding: '12px 8px', textAlign: 'center', flexShrink: 0, borderTop: '1px solid #f0f0f0' }}>
-              <Button
-                type="text" size="small"
-                onClick={onToggleSider}
-                icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                style={{ width: '100%' }}
               />
             </div>
           </div>

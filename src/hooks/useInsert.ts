@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import type { InsertField, InsertDialect } from '../types'
-import { parseCreateTableDDL, parseFieldDefinitions, generatePGInsert, generateHiveInsert } from '../utils/insert'
+import { parseCreateTableDDL, parseFieldDefinitions, generatePGInsertBatch, generateHiveInsertBatch } from '../utils/insert'
 
 export interface UseInsertReturn {
   insertExcelData: any[][] | null
@@ -65,10 +65,10 @@ export function useInsert(message: { success: (msg: string) => void; error: (msg
 
   const insertDoGenerate = useCallback(() => {
     if (!insertExcelData || insertExcelData.length === 0 || insertFields.length === 0) { message.warning('请先上传数据并配置字段'); return }
-    const genFn = insertDialect === 'pg' ? generatePGInsert : generateHiveInsert
-    const lines = insertExcelData.map(row => genFn(insertTableName, insertFields, row))
-    setInsertResult(lines.join('\n'))
-    message.success(`已生成 ${lines.length} 条语句`)
+    const genFn = insertDialect === 'pg' ? generatePGInsertBatch : generateHiveInsertBatch
+    const result = genFn(insertTableName, insertFields, insertExcelData)
+    setInsertResult(result)
+    message.success(`已生成 ${insertExcelData.length} 条数据的 INSERT 语句`)
   }, [insertExcelData, insertFields, insertTableName, insertDialect, message])
 
   return {

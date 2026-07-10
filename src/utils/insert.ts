@@ -60,7 +60,35 @@ function formatValue(val: any, quoted: boolean): string {
   return `'${String(val).replace(/'/g, "''")}'`
 }
 
-// ============ INSERT 生成 ============
+// ============ INSERT 生成（批量模式：一条 INSERT + 多值） ============
+
+/** 生成单行值元组 `(val1, val2, ...)` */
+function formatValueTuple(fields: InsertField[], row: any[]): string {
+  const active = fields.map((f, i) => ({ f, v: row[i], i })).filter(x => x.f.enabled)
+  return '(' + active.map(x => formatValue(x.v, x.f.quoted)).join(', ') + ')'
+}
+
+/** 生成列名部分 */
+function formatColumnList(fields: InsertField[]): string {
+  return fields.filter(f => f.enabled).map(f => f.name).join(', ')
+}
+
+/** 生成 PostgreSQL 批量 INSERT：INSERT INTO table (cols) VALUES (v1), (v2), ...; */
+export function generatePGInsertBatch(tableName: string, fields: InsertField[], rows: any[][]): string {
+  const cols = formatColumnList(fields)
+  const values = rows.map(row => formatValueTuple(fields, row)).join(',\n')
+  return `INSERT INTO ${tableName} (${cols})\nVALUES\n${values};`
+}
+
+/** 生成 Hive 批量 INSERT：INSERT INTO TABLE table (cols) VALUES (v1), (v2), ...; */
+export function generateHiveInsertBatch(tableName: string, fields: InsertField[], rows: any[][]): string {
+  const cols = formatColumnList(fields)
+  const values = rows.map(row => formatValueTuple(fields, row)).join(',\n')
+  return `INSERT INTO TABLE ${tableName} (${cols})\nVALUES\n${values};`
+}
+
+// ============ 单行模式（兼容旧接口） ============
+
 export function generatePGInsert(tableName: string, fields: InsertField[], row: any[]): string {
   const active = fields.map((f, i) => ({ f, v: row[i], i })).filter(x => x.f.enabled)
   const colNames = active.map(x => x.f.name).join(', ')
