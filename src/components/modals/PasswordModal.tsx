@@ -19,6 +19,7 @@ export default function PasswordModal({ open, loading, oldPwd, newPwd, newPwd2, 
     <Modal
       open={open}
       title="修改密码"
+      getContainer={() => document.body}
       onCancel={onCancel}
       onOk={onOk}
       confirmLoading={loading}

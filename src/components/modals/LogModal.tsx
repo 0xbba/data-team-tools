@@ -19,7 +19,9 @@ export default function LogModal({ open, data, total, page, totalPages, onPageCh
       open={open}
       title="变更日志"
       width="calc(100vw - 2rem)"
-      style={{ top: 20, maxWidth: 720 }}
+      centered
+      style={{ maxWidth: 720 }}
+      getContainer={() => document.body}
       onCancel={onClose}
       footer={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>

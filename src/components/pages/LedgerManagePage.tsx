@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Typography, Button, Divider, Input, Table, Switch, Tooltip, Popconfirm, Modal, Tag, AutoComplete, Collapse } from 'antd'
-import { HddOutlined, ReloadOutlined, DownloadOutlined, EditOutlined, FileTextOutlined, DeleteOutlined, DatabaseOutlined, UndoOutlined, PlusOutlined, UpOutlined } from '@ant-design/icons'
+import { Typography, Button, Divider, Input, Table, Switch, Tooltip, Popconfirm, Modal, Tag, AutoComplete, Collapse, Dropdown } from 'antd'
+import { HddOutlined, ReloadOutlined, DownloadOutlined, EditOutlined, FileTextOutlined, DeleteOutlined, DatabaseOutlined, UndoOutlined, PlusOutlined, UpOutlined, MoreOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import type { UseLedgerReturn } from '../../hooks/useLedger'
@@ -9,6 +9,7 @@ import { LEDGER_FIELDS, LOG_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../constants
 import { formatLogValue, timestamp } from '../../utils/format'
 import { useAppContext } from '../../contexts/AppContext'
 import { Api } from '../../api'
+import { useIsSmallScreen } from '../../hooks/useResponsive'
 
 interface LedgerManagePageProps {
   ledgerHook: UseLedgerReturn
@@ -16,6 +17,7 @@ interface LedgerManagePageProps {
 
 export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) {
   const { hasPerm, dataMode, offlineMode, dbLoading, message, currentUser } = useAppContext()
+  const isSmall = useIsSmallScreen()
 
   const {
     ledgerData, ledgerTotal, ledgerPage, ledgerPageSize, ledgerSearchInput,
@@ -214,8 +216,30 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
           { title: '完成时间', dataIndex: 'finishTime', key: 'finishTime', width: 170, sorter: true, render: v => v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-' },
           { title: '创建时间', dataIndex: 'createDate', key: 'createDate', width: 170, sorter: true, render: v => v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-' },
           {
-            title: '操作', key: 'actions', width: 200, align: 'center' as const, fixed: 'right' as const,
+            title: '操作', key: 'actions', width: isSmall ? 50 : 200, align: 'center' as const, fixed: 'right' as const,
             render: (_, record) => {
+              const editRecord = () => { setLedgerEditRecord({ ...record }); ledgerHook.setLedgerEditId(record._dbId ?? null); setLedgerEditOpen(true) }
+
+              // ---- 小屏：收进 Dropdown ----
+              if (isSmall) {
+                if (record._deleted) {
+                  const items: any[] = []
+                  if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId, record.requestNo) })
+                  if (dataMode === 'database' && !offlineMode) items.push({ key: 'extraction', icon: <DatabaseOutlined />, label: '提取记录', onClick: () => openExtractionModal(record.requestNo) })
+                  if (dataMode === 'database' && !offlineMode && hasPerm('ledger_parse')) items.push({ key: 'addExtraction', icon: <PlusOutlined />, label: '新增提取记录', onClick: () => openExtractionModal(record.requestNo, true) })
+                  if (hasPerm('ledger_restore')) items.push({ key: 'restore', icon: <UndoOutlined />, label: '恢复', onClick: () => { Modal.confirm({ title: '确认恢复', content: '确定要恢复此条台账记录吗？', okText: '恢复', cancelText: '取消', getContainer: () => document.body, onOk: () => restoreLedgerRecord(record) }) } })
+                  return <Dropdown menu={{ items }} trigger={['click']}><Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} /></Dropdown>
+                }
+                const items: any[] = []
+                if (hasPerm('ledger_edit')) items.push({ key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: editRecord })
+                if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId, record.requestNo) })
+                if (dataMode === 'database' && !offlineMode) items.push({ key: 'extraction', icon: <DatabaseOutlined />, label: '提取记录', onClick: () => openExtractionModal(record.requestNo) })
+                if (dataMode === 'database' && !offlineMode && hasPerm('ledger_parse')) items.push({ key: 'addExtraction', icon: <PlusOutlined />, label: '新增提取记录', onClick: () => openExtractionModal(record.requestNo, true) })
+                if (hasPerm('ledger_delete')) items.push({ key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => { Modal.confirm({ title: '确认删除', content: '确定要删除此条台账记录吗？', okText: '删除', okButtonProps: { danger: true }, cancelText: '取消', getContainer: () => document.body, onOk: () => deleteLedgerRecord(record) }) } })
+                return <Dropdown menu={{ items }} trigger={['click']}><Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} /></Dropdown>
+              }
+
+              // ---- 大屏：保持原样 ----
               if (record._deleted) {
                 return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                   {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId, record.requestNo)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
@@ -227,11 +251,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
                 </div>
               }
               return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                {hasPerm('ledger_edit') && <Tooltip title="编辑"><Button type="text" size="small" onClick={() => {
-                  setLedgerEditRecord({ ...record })
-                  ledgerHook.setLedgerEditId(record._dbId ?? null)
-                  setLedgerEditOpen(true)
-                }} icon={<EditOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
+                {hasPerm('ledger_edit') && <Tooltip title="编辑"><Button type="text" size="small" onClick={editRecord} icon={<EditOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId, record.requestNo)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {dataMode === 'database' && !offlineMode && <Tooltip title="提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo)} icon={<DatabaseOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {dataMode === 'database' && !offlineMode && hasPerm('ledger_parse') && <Tooltip title="新增提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo, true)} icon={<PlusOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
@@ -258,7 +278,9 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
           </div>
         }
         width="calc(100vw - 2rem)"
-        style={{ top: 20, maxWidth: 720 }}
+        centered
+        style={{ maxWidth: 720 }}
+        getContainer={() => document.body}
         onCancel={() => { setExtractionOpen(false); setExtractionEditId(null); setExtractionEditRecord(null); setExtractionAdding(false) }}
         footer={null}
       >
@@ -368,7 +390,9 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
           open={extractionEditId !== null && extractionEditRecord !== null}
           title="编辑提取记录"
           width="calc(100vw - 2rem)"
-          style={{ top: 20, maxWidth: 400 }}
+          centered
+          style={{ maxWidth: 400 }}
+          getContainer={() => document.body}
           onCancel={() => { setExtractionEditId(null); setExtractionEditRecord(null) }}
           onOk={handleExtractionUpdate}
         >
@@ -399,7 +423,9 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
         open={ledgerEditOpen}
         title="编辑台账记录"
         width="calc(100vw - 2rem)"
-        style={{ top: 20, maxWidth: 720 }}
+        centered
+        style={{ maxWidth: 720 }}
+        getContainer={() => document.body}
         onCancel={() => setLedgerEditOpen(false)}
         onOk={async () => {
           if (ledgerEditId === null || !ledgerEditRecord) return
@@ -437,7 +463,9 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
         open={ledgerLogOpen}
         title="台账变更日志"
         width="calc(100vw - 2rem)"
-        style={{ top: 20, maxWidth: 720 }}
+        centered
+        style={{ maxWidth: 720 }}
+        getContainer={() => document.body}
         onCancel={() => setLedgerLogOpen(false)}
         footer={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>

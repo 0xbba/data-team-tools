@@ -28,6 +28,7 @@ export default function ImportConflictModal({ open, conflicts, onConfirm, onCanc
       open={open}
       title="导入冲突"
       width={680}
+      getContainer={() => document.body}
       onCancel={onCancel}
       footer={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
