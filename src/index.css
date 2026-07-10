@@ -39,6 +39,7 @@
   body {
     overflow: hidden !important;
     padding-right: 0 !important;
+    margin: 0 !important;
   }
 
   /* 小屏下 RangePicker 只显示单月份面板，避免弹窗溢出 */
