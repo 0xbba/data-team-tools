@@ -146,15 +146,16 @@ export default function ManagePage({ manageHook, showDeleted, setShowDeleted }: 
         dataSource={manageHook.filteredData}
         rowKey={(record, index) => String(record._dbId ?? index ?? 0)}
         rowClassName={() => ''}
-        scroll={{ x: 800 }}
+        scroll={{ x: 800, y: 'calc(100vh - 260px)' }}
         pagination={{
           current: safePage,
           pageSize: manageHook.managePageSize,
           total: manageHook.filteredData.length,
-          showSizeChanger: true,
+          showSizeChanger: !isSmall,
           pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-          showQuickJumper: true,
-          showTotal: (total, range) => `显示第 ${range[0]}-${range[1]} 条，共 ${total} 条${manageHook.manageSearch ? '（筛选中）' : ''}`,
+          showQuickJumper: !isSmall,
+          simple: isSmall,
+          showTotal: isSmall ? undefined : ((total, range) => `显示第 ${range[0]}-${range[1]} 条，共 ${total} 条${manageHook.manageSearch ? '（筛选中）' : ''}`),
           onChange: (p, ps) => { setPage(p); if (ps !== manageHook.managePageSize) { manageHook.setManagePageSize(ps); setPage(1) } },
           size: 'small',
         }}

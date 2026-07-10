@@ -184,7 +184,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
         dataSource={displayLedgerData}
         rowKey={(record) => String(record._dbId ?? Math.random())}
         rowClassName={() => ''}
-        scroll={{ x: 1800 }}
+        scroll={{ x: 1800, y: 'calc(100vh - 290px)' }}
         onChange={(_pagination, _filters, sorter) => {
           const s = Array.isArray(sorter) ? sorter[0] : sorter
           if (!s || !s.field) { setLedgerSortBy(undefined); setLedgerSortOrder(undefined) }
@@ -194,10 +194,11 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
           current: ledgerPage,
           pageSize: ledgerPageSize,
           total: showDeletedLedger ? deletedLedgerData.length : ledgerTotal,
-          showSizeChanger: true,
+          showSizeChanger: !isSmall,
           pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-          showQuickJumper: true,
-          showTotal: (total, range) => `显示第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+          showQuickJumper: !isSmall,
+          simple: isSmall,
+          showTotal: isSmall ? undefined : ((total, range) => `显示第 ${range[0]}-${range[1]} 条，共 ${total} 条`),
           onChange: (page, pageSize) => { setLedgerPage(page); if (pageSize !== ledgerPageSize) { setLedgerPageSize(pageSize); setLedgerPage(1) } },
           size: 'small',
         }}
