@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; color: rgba(0,0,0,0.88); background: #f5f5f5; }
+
+    .section { background: #fff; margin: 8px; border-radius: 8px; padding: 12px; border: 1px solid #f0f0f0; }
+    .section-title { font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.65); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .section-title .badge { font-size: 10px; background: #52c41a; color: #fff; padding: 1px 6px; border-radius: 10px; }
+    .section-title .badge.warn { background: #faad14; }
+    .section-title .badge.error { background: #ff4d4f; }
+
+    .field-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; font-size: 12px; }
+    .field-label { color: rgba(0,0,0,0.45); flex-shrink: 0; width: 70px; text-align: right; line-height: 28px; }
+    .field-input, .field-textarea { flex: 1; border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit; color: rgba(0,0,0,0.88); outline: none; resize: vertical; min-height: 28px; }
+    .field-input:focus, .field-textarea:focus { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,0.1); }
+    .field-input:disabled { background: #f5f5f5; color: rgba(0,0,0,0.25); cursor: not-allowed; }
+    .field-input::placeholder, .field-textarea::placeholder { color: rgba(0,0,0,0.25); }
+
+    .actions { display: flex; gap: 8px; margin-top: 8px; }
+
+    button { cursor: pointer; border: none; border-radius: 6px; padding: 6px 16px; font-size: 12px; font-weight: 500; transition: all 0.2s; }
+    .btn-primary { background: #1677ff; color: #fff; flex: 1; }
+    .btn-primary:hover { background: #4096ff; }
+    .btn-primary:disabled { background: rgba(22,119,255,0.4); cursor: not-allowed; }
+    .btn-default { background: #fff; color: rgba(0,0,0,0.88); border: 1px solid #d9d9d9; }
+    .btn-default:hover { border-color: #4096ff; color: #4096ff; }
+
+    .extraction-form { margin-top: 8px; }
+    .form-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .form-row label { font-size: 12px; color: rgba(0,0,0,0.65); width: 56px; flex-shrink: 0; }
+    .form-row input { flex: 1; border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 8px; font-size: 12px; outline: none; }
+    .form-row input:focus { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,0.1); }
+
+    .msg { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-top: 8px; }
+    .msg.success { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+    .msg.error { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+    .msg.info { background: #e6f4ff; color: #1677ff; border: 1px solid #91caff; }
+
+    .empty { text-align: center; color: rgba(0,0,0,0.25); padding: 24px 0; font-size: 12px; }
+
+    .tabs { display: flex; gap: 0; margin: 8px 8px 0; }
+    .tab { flex: 1; text-align: center; padding: 8px; font-size: 12px; font-weight: 500; background: #fff; border: 1px solid #f0f0f0; cursor: pointer; color: rgba(0,0,0,0.65); }
+    .tab:first-child { border-radius: 8px 0 0 0; }
+    .tab:last-child { border-radius: 0 8px 0 0; }
+    .tab.active { color: #1677ff; border-bottom-color: #fff; background: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    #connection-status { font-size: 12px; margin-bottom: 8px; }
+
+    #page-indicator { margin: 8px 8px 0; }
+
+    .hint { font-size: 11px; color: rgba(0,0,0,0.45); line-height: 1.5; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="page-indicator" style="display:none"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="parse">解析写入</div>
+    <div class="tab" data-tab="settings">设置</div>
+  </div>
+
+  <!-- 解析写入 -->
+  <div class="tab-content active" id="tab-parse">
+    <div class="section">
+      <div class="section-title">
+        解析结果
+        <span class="badge" id="parse-status" style="display:none"></span>
+      </div>
+      <div id="parse-result">
+        <div class="empty">点击下方按钮解析当前页面</div>
+      </div>
+    </div>
+
+    <div class="section" id="extraction-section" style="display:none">
+      <div class="section-title">提取记录</div>
+      <div class="extraction-form">
+        <div class="form-row">
+          <label>数据条数</label>
+          <input type="text" id="record-count" placeholder="必填，纯数字">
+        </div>
+        <div class="form-row">
+          <label>取数人</label>
+          <input type="text" id="extractor" placeholder="Token验证后自动填充">
+        </div>
+        <div class="form-row">
+          <label>监督人</label>
+          <input type="text" id="supervisor" list="supervisor-list" placeholder="选填">
+          <datalist id="supervisor-list"></datalist>
+        </div>
+        <div class="form-row">
+          <label>备注</label>
+          <input type="text" id="remark" placeholder="选填">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="actions">
+        <button class="btn-default" id="btn-parse">解析页面</button>
+        <button class="btn-primary" id="btn-write" disabled>写入台账</button>
+      </div>
+      <div id="msg-area"></div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="tab-content" id="tab-settings">
+    <div class="section">
+      <div class="section-title">连接配置</div>
+      <div id="connection-status"></div>
+      <div class="form-row">
+        <label>API地址</label>
+        <input type="text" id="api-url" placeholder="http://localhost:3456">
+      </div>
+      <div class="form-row">
+        <label>Token</label>
+        <input type="password" id="api-token" placeholder="粘贴 dtt_ 开头的 API Token">
+      </div>
+      <div class="hint">在主应用头像菜单「API Token」中创建令牌，以 dtt_ 开头</div>
+      <div class="actions">
+        <button class="btn-default" id="btn-save-settings">保存并验证</button>
+        <button class="btn-default" id="btn-clear-token" style="color:#ff4d4f;border-color:#ff4d4f">清除 Token</button>
+      </div>
+      <div id="settings-msg-area"></div>
+    </div>
+  </div>
+
+  <script src="parser.js"></script>
+  <script src="sidebar.js"></script>
+</body>
+</html>

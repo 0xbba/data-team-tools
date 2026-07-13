@@ -225,7 +225,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
               if (isSmall) {
                 if (record._deleted) {
                   const items: any[] = []
-                  if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId, record.requestNo) })
+                  if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId) })
                   if (dataMode === 'database' && !offlineMode) items.push({ key: 'extraction', icon: <DatabaseOutlined />, label: '提取记录', onClick: () => openExtractionModal(record.requestNo) })
                   if (dataMode === 'database' && !offlineMode && hasPerm('ledger_parse')) items.push({ key: 'addExtraction', icon: <PlusOutlined />, label: '新增提取记录', onClick: () => openExtractionModal(record.requestNo, true) })
                   if (hasPerm('ledger_restore')) items.push({ key: 'restore', icon: <UndoOutlined />, label: '恢复', onClick: () => { Modal.confirm({ title: '确认恢复', content: '确定要恢复此条台账记录吗？', okText: '恢复', cancelText: '取消', getContainer: () => document.body, onOk: () => restoreLedgerRecord(record) }) } })
@@ -233,7 +233,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
                 }
                 const items: any[] = []
                 if (hasPerm('ledger_edit')) items.push({ key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: editRecord })
-                if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId, record.requestNo) })
+                if (!offlineMode && hasPerm('ledger_log')) items.push({ key: 'log', icon: <FileTextOutlined />, label: '变更日志', onClick: () => record._dbId && openLedgerLogModal(record._dbId) })
                 if (dataMode === 'database' && !offlineMode) items.push({ key: 'extraction', icon: <DatabaseOutlined />, label: '提取记录', onClick: () => openExtractionModal(record.requestNo) })
                 if (dataMode === 'database' && !offlineMode && hasPerm('ledger_parse')) items.push({ key: 'addExtraction', icon: <PlusOutlined />, label: '新增提取记录', onClick: () => openExtractionModal(record.requestNo, true) })
                 if (hasPerm('ledger_delete')) items.push({ key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => { Modal.confirm({ title: '确认删除', content: '确定要删除此条台账记录吗？', okText: '删除', okButtonProps: { danger: true }, cancelText: '取消', getContainer: () => document.body, onOk: () => deleteLedgerRecord(record) }) } })
@@ -243,7 +243,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
               // ---- 大屏：保持原样 ----
               if (record._deleted) {
                 return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId, record.requestNo)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
+                  {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                   {dataMode === 'database' && !offlineMode && <Tooltip title="提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo)} icon={<DatabaseOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                   {dataMode === 'database' && !offlineMode && hasPerm('ledger_parse') && <Tooltip title="新增提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo, true)} icon={<PlusOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                   {hasPerm('ledger_restore') && <Popconfirm title="确认恢复" description="确定要恢复此条台账记录吗？" onConfirm={() => restoreLedgerRecord(record)} okText="恢复" cancelText="取消">
@@ -253,7 +253,7 @@ export default function LedgerManagePage({ ledgerHook }: LedgerManagePageProps) 
               }
               return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                 {hasPerm('ledger_edit') && <Tooltip title="编辑"><Button type="text" size="small" onClick={editRecord} icon={<EditOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
-                {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId, record.requestNo)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
+                {!offlineMode && hasPerm('ledger_log') && <Tooltip title="变更日志"><Button type="text" size="small" onClick={() => record._dbId && openLedgerLogModal(record._dbId)} icon={<FileTextOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {dataMode === 'database' && !offlineMode && <Tooltip title="提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo)} icon={<DatabaseOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {dataMode === 'database' && !offlineMode && hasPerm('ledger_parse') && <Tooltip title="新增提取记录"><Button type="text" size="small" onClick={() => openExtractionModal(record.requestNo, true)} icon={<PlusOutlined style={{ fontSize: 16 }} />} /></Tooltip>}
                 {hasPerm('ledger_delete') && <Popconfirm title="确认删除" description="确定要删除此条台账记录吗？" onConfirm={() => deleteLedgerRecord(record)} okText="删除" cancelText="取消" okButtonProps={{ danger: true, size: 'small' }} cancelButtonProps={{ size: 'small' }}>

@@ -1,0 +1,576 @@
+// ============ 工具函数 ============
+function $(id) { return document.getElementById(id) }
+
+function showMsg(containerId, text, type = 'info') {
+  const el = $(containerId)
+  el.innerHTML = `<div class="msg ${type}">${text}</div>`
+  if (type !== 'error') setTimeout(() => { if (el.querySelector('.msg')?.textContent === text) el.innerHTML = '' }, 5000)
+}
+
+// ============ 设置管理 ============
+const DEFAULT_API_URL = 'http://localhost:3456'
+const TARGET_URL_PATTERN = 'scitsmpro.paas.sc.ctc.com'
+
+async function getSettings() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['apiUrl', 'apiToken', 'userInfo'], (r) => {
+      resolve({
+        apiUrl: r.apiUrl || DEFAULT_API_URL,
+        apiToken: r.apiToken || '',
+        userInfo: r.userInfo || null,
+      })
+    })
+  })
+}
+
+async function saveSettings(data) {
+  return new Promise(resolve => {
+    chrome.storage.local.set(data, resolve)
+  })
+}
+
+// ============ API 调用 ============
+async function apiRequest(path, options = {}) {
+  const { apiUrl, apiToken } = await getSettings()
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (apiToken) headers['Authorization'] = `Bearer ${apiToken}`
+  const res = await fetch(`${apiUrl}${path}`, { ...options, headers })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `请求失败 (${res.status})`)
+  }
+  return res.json()
+}
+
+// ============ 页面数据提取 ============
+// 优先使用 DOM 结构化提取，回退到 innerText 解析
+async function extractPageData() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!tab) throw new Error('无法获取当前标签页')
+
+  // 方法1：尝试 DOM 结构化提取（content script 的 EXTRACT_DOM 消息）
+  const isOA = tab.url?.includes(TARGET_URL_PATTERN)
+  if (isOA) {
+    try {
+      // 先尝试发消息，确认 content script 是否已注入
+      let response = null
+      try {
+        response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_DOM' })
+      } catch (e) {
+        // content script 未注入，手动注入一次
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] })
+          // 注入后再发消息
+          response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_DOM' })
+        } catch (e2) {
+          console.warn('content script 注入失败:', e2)
+        }
+      }
+      if (response?.data) {
+        return { record: response.data, method: 'DOM' }
+      }
+    } catch (e) {
+      console.warn('DOM提取失败，回退到文本解析:', e)
+    }
+  }
+
+  // 方法2：使用 scripting API 从所有 frame 提取 innerText，再用 parseLedgerText 解析
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: () => {
+        let text = document.body?.innerText || ''
+        try {
+          const iframes = document.querySelectorAll('iframe')
+          for (const iframe of iframes) {
+            if (iframe.contentDocument?.body) {
+              text += '\n' + iframe.contentDocument.body.innerText
+            }
+          }
+        } catch (e) {}
+        return text
+      }
+    })
+    let allText = ''
+    let bestText = ''
+    for (const r of results) {
+      const t = r.result || ''
+      allText += t + '\n'
+      if (t.length > bestText.length) bestText = t
+    }
+    const text = bestText || allText
+    const record = parseLedgerText(text)
+    return { record, method: 'text' }
+  } catch (e) {
+    // scripting API 失败，回退到 content script
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_TEXT' })
+      const text = response?.text || ''
+      const record = parseLedgerText(text)
+      return { record, method: 'text' }
+    } catch (e2) {
+      throw new Error('无法提取页面数据，请确认已授予所需权限')
+    }
+  }
+}
+
+// 判断当前页面是否为目标OA页面
+async function isTargetPage() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  return tab?.url?.includes(TARGET_URL_PATTERN) || false
+}
+
+// ============ 渲染解析结果 ============
+let currentParsed = null
+
+// 字段定义：[label, key, type]  type: 'input' | 'textarea' | 'finishTime'
+const PARSE_FIELDS = [
+  ['数据单号', 'requestNo', 'input'],
+  ['申请时间', 'requestTime', 'input'],
+  ['申请员工', 'applicant', 'input'],
+  ['员工电话', 'applicantPhone', 'input'],
+  ['申请部门', 'applicantDept', 'input'],
+  ['申请标题', 'requestTitle', 'textarea'],
+  ['申请事由', 'requestReason', 'textarea'],
+  ['数据内容', 'requestDataContent', 'textarea'],
+  ['处理人', 'processor', 'input'],
+  ['完成时间', 'finishTime', 'finishTime'],
+]
+
+function renderParsed(record) {
+  currentParsed = record
+  const container = $('parse-result')
+  const status = $('parse-status')
+
+  if (!record) {
+    container.innerHTML = '<div class="empty">未能识别出台账信息</div>'
+    status.className = 'badge error'
+    status.textContent = '失败'
+    status.style.display = ''
+    $('btn-write').disabled = true
+    $('extraction-section').style.display = 'none'
+    return
+  }
+
+  status.className = 'badge'
+  status.textContent = '成功'
+  status.style.display = ''
+
+  container.innerHTML = PARSE_FIELDS.map(([label, key, type]) => {
+    const value = record[key] || ''
+    if (type === 'textarea') {
+      return `<div class="field-row"><span class="field-label">${label}</span><textarea class="field-textarea" data-key="${key}" rows="2">${escHtml(value)}</textarea></div>`
+    }
+    if (type === 'finishTime') {
+      if (value) {
+        return `<div class="field-row"><span class="field-label">${label}</span><input class="field-input" data-key="${key}" value="${escAttr(value)}"></div>`
+      }
+      return `<div class="field-row"><span class="field-label">${label}</span><input class="field-input" data-key="${key}" disabled placeholder="当前时间"></div>`
+    }
+    return `<div class="field-row"><span class="field-label">${label}</span><input class="field-input" data-key="${key}" value="${escAttr(value)}"></div>`
+  }).join('')
+
+  $('btn-write').disabled = false
+  $('extraction-section').style.display = ''
+}
+
+// 辅助：HTML 转义
+function escHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function escAttr(s) { return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;') }
+
+// 从当前 input/textarea 读取最新解析值
+function getCurrentParsedValues() {
+  if (!currentParsed) return null
+  const record = { ...currentParsed }
+  document.querySelectorAll('#parse-result [data-key]').forEach(el => {
+    const key = el.dataset.key
+    if (key && !el.disabled) {
+      record[key] = el.value
+    }
+  })
+  return record
+}
+
+// ============ 解析按钮 ============
+$('btn-parse').addEventListener('click', async () => {
+  try {
+    $('btn-parse').disabled = true
+    showMsg('msg-area', '正在提取页面数据并解析...', 'info')
+    const { record, method } = await extractPageData()
+    renderParsed(record)
+    if (record) {
+      showMsg('msg-area', `解析成功（${method === 'DOM' ? '结构化' : '文本'}），单号：${record.requestNo || '未知'}`, 'success')
+    } else {
+      showMsg('msg-area', '未能识别出台账信息，请确认页面内容', 'error')
+    }
+  } catch (e) {
+    showMsg('msg-area', `解析失败：${e.message}`, 'error')
+    renderParsed(null)
+  } finally {
+    $('btn-parse').disabled = false
+  }
+})
+
+// ============ 变更对比与确认 ============
+// 统一用 camelCase 键名，确保与 parsed / existingRecord 一致
+const DIFF_FIELDS = [
+  { key: 'requestNo', label: '数据单号' },
+  { key: 'requestTime', label: '申请时间' },
+  { key: 'applicant', label: '申请员工' },
+  { key: 'applicantPhone', label: '员工电话' },
+  { key: 'applicantDept', label: '申请部门' },
+  { key: 'requestTitle', label: '申请标题' },
+  { key: 'requestReason', label: '申请事由' },
+  { key: 'requestDataContent', label: '数据内容' },
+  { key: 'processor', label: '处理人' },
+  { key: 'finishTime', label: '完成时间' },
+]
+
+function buildDiffDisplay(existing, parsed) {
+  const diffs = []
+  for (const { key, label } of DIFF_FIELDS) {
+    const oldVal = String(existing[key] ?? '').trim()
+    let newVal = String(parsed[key] ?? '').trim()
+
+    // finishTime 为空 = 使用当前时间，不视为变更，不应覆盖已有值
+    if (key === 'finishTime' && !newVal) continue
+
+    // 时间字段：比较时间戳，相同则跳过（数据库存UTC，解析出本地时间，字符串不同但时刻相同）
+    if ((key === 'requestTime' || key === 'finishTime') && oldVal && newVal) {
+      const oldTs = new Date(oldVal).getTime()
+      const newTs = new Date(newVal).getTime()
+      if (!isNaN(oldTs) && !isNaN(newTs) && oldTs === newTs) continue
+    }
+
+    if (oldVal === newVal) continue
+    diffs.push({ key, label, oldVal: oldVal || '空', newVal: newVal || '空', checked: true })
+  }
+  return diffs
+}
+
+function showConfirmDialog(diffs, onConfirm, onCancel) {
+  const old = document.getElementById('confirm-dialog')
+  if (old) old.remove()
+
+  const overlay = document.createElement('div')
+  overlay.id = 'confirm-dialog'
+  overlay.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 10000;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  `
+
+  const box = document.createElement('div')
+  box.style.cssText = `
+    background: #fff; border-radius: 10px; padding: 16px; width: 100%; max-width: 360px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15); max-height: 80vh; overflow-y: auto;
+  `
+
+  const title = document.createElement('div')
+  title.style.cssText = 'font-size: 14px; font-weight: 600; margin-bottom: 10px; color: rgba(0,0,0,0.88);'
+  title.textContent = `检测到 ${diffs.length} 处变更，勾选需要更新的项`
+  box.appendChild(title)
+
+  for (let i = 0; i < diffs.length; i++) {
+    const d = diffs[i]
+    const row = document.createElement('div')
+    row.style.cssText = 'margin-bottom: 8px; font-size: 12px; display: flex; gap: 6px; align-items: flex-start;'
+
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.checked = true
+    cb.dataset.idx = i
+    cb.style.cssText = 'margin-top: 3px; flex-shrink: 0; width: 14px; height: 14px; cursor: pointer;'
+
+    const content = document.createElement('div')
+    content.style.cssText = 'flex: 1; min-width: 0;'
+    content.innerHTML = `
+      <div style="color:rgba(0,0,0,0.65);font-weight:500;margin-bottom:2px;">${d.label}</div>
+      <div style="color:#ff4d4f;text-decoration:line-through;word-break:break-all;">${escHtml(d.oldVal.length > 80 ? d.oldVal.slice(0, 80) + '...' : d.oldVal)}</div>
+      <div style="color:#52c41a;word-break:break-all;">${escHtml(d.newVal.length > 80 ? d.newVal.slice(0, 80) + '...' : d.newVal)}</div>
+    `
+
+    row.appendChild(cb)
+    row.appendChild(content)
+    box.appendChild(row)
+  }
+
+  const btnRow = document.createElement('div')
+  btnRow.style.cssText = 'display: flex; gap: 8px; margin-top: 12px;'
+
+  const cancelBtn = document.createElement('button')
+  cancelBtn.className = 'btn-default'
+  cancelBtn.textContent = '取消'
+  cancelBtn.style.flex = '1'
+  cancelBtn.onclick = () => { overlay.remove(); onCancel?.() }
+
+  const confirmBtn = document.createElement('button')
+  confirmBtn.className = 'btn-primary'
+  confirmBtn.textContent = '确认更新'
+  confirmBtn.style.flex = '1'
+  confirmBtn.onclick = () => {
+    // 收集勾选状态
+    const checkboxes = box.querySelectorAll('input[type=checkbox]')
+    checkboxes.forEach(cb => {
+      diffs[cb.dataset.idx].checked = cb.checked
+    })
+    overlay.remove()
+    onConfirm(diffs)
+  }
+
+  btnRow.appendChild(cancelBtn)
+  btnRow.appendChild(confirmBtn)
+  box.appendChild(btnRow)
+  overlay.appendChild(box)
+  document.body.appendChild(overlay)
+}
+
+// ============ 写入台账按钮 ============
+$('btn-write').addEventListener('click', async () => {
+  const parsed = getCurrentParsedValues()
+  if (!parsed) return
+  const recordCount = parseInt($('record-count').value, 10)
+  const extractor = $('extractor').value.trim()
+  const supervisor = $('supervisor').value.trim()
+  const remark = $('remark').value.trim()
+
+  try {
+    $('btn-write').disabled = true
+
+    const requestNo = parsed.requestNo
+    let ledgerId = null
+    let needUpdate = false
+    let existingRecord = null
+
+    if (requestNo) {
+      const check = await apiRequest(`/api/ledger/check/${encodeURIComponent(requestNo)}`)
+      if (check.exists) {
+        ledgerId = check.record._dbId || check.record.id
+        needUpdate = true
+        existingRecord = check.record
+      }
+    }
+
+    // 更新模式：显示变更对比，用户选择后写入
+    if (needUpdate && existingRecord) {
+      const diffs = buildDiffDisplay(existingRecord, parsed)
+
+      if (diffs.length === 0) {
+        // 无变更，检查是否有提取记录要登记
+        if (recordCount > 0 && requestNo) {
+          await apiRequest('/api/extraction', {
+            method: 'POST',
+            body: JSON.stringify({
+              request_no: requestNo,
+              record_count: recordCount,
+              extractor: extractor || undefined,
+              supervisor: supervisor || undefined,
+              remark: remark || undefined,
+            })
+          })
+          showMsg('msg-area', `台账无变化，提取记录已登记（${recordCount}条）`, 'success')
+        } else {
+          showMsg('msg-area', '数据无变化，无需更新', 'info')
+        }
+        $('btn-write').disabled = false
+        return
+      }
+
+      // 等待用户确认选择
+      const selectedDiffs = await new Promise((resolve) => {
+        showConfirmDialog(diffs, (result) => resolve(result), () => resolve(null))
+      })
+
+      if (!selectedDiffs) {
+        $('btn-write').disabled = false
+        return
+      }
+
+      // 检查是否有勾选项
+      const checkedDiffs = selectedDiffs.filter(d => d.checked)
+
+      if (checkedDiffs.length === 0) {
+        // 没有勾选任何变更，检查是否有提取记录要登记
+        if (recordCount > 0 && requestNo) {
+          await apiRequest('/api/extraction', {
+            method: 'POST',
+            body: JSON.stringify({
+              request_no: requestNo,
+              record_count: recordCount,
+              extractor: extractor || undefined,
+              supervisor: supervisor || undefined,
+              remark: remark || undefined,
+            })
+          })
+          showMsg('msg-area', `未选择任何变更，提取记录已登记（${recordCount}条）`, 'success')
+        } else {
+          showMsg('msg-area', '未选择任何变更', 'info')
+        }
+        $('btn-write').disabled = false
+        return
+      }
+
+      showMsg('msg-area', '正在写入...', 'info')
+
+      // 只提交勾选的字段
+      const camelToSnake = {
+        requestNo: 'request_no', requestTime: 'request_time', applicant: 'applicant',
+        applicantPhone: 'applicant_phone', applicantDept: 'applicant_dept',
+        requestTitle: 'request_title', requestReason: 'request_reason',
+        requestDataContent: 'request_data_content', processor: 'processor',
+        finishTime: 'finish_time',
+      }
+      const body = {}
+      for (const d of checkedDiffs) {
+        const snakeKey = camelToSnake[d.key]
+        if (snakeKey) {
+          // 空值 finishTime 不放入 body（由后端 DEFAULT NOW() 处理）
+          if (d.key === 'finishTime' && !parsed.finishTime) continue
+          body[snakeKey] = parsed[d.key]
+        }
+      }
+
+      if (needUpdate && ledgerId) {
+        await apiRequest(`/api/ledger/${ledgerId}`, { method: 'PUT', body: JSON.stringify(body) })
+      }
+    } else {
+      showMsg('msg-area', '正在写入...', 'info')
+      // 新增模式：提交全部字段
+      const body = {
+        request_no: parsed.requestNo,
+        request_time: parsed.requestTime,
+        applicant: parsed.applicant,
+        applicant_phone: parsed.applicantPhone,
+        applicant_dept: parsed.applicantDept,
+        request_title: parsed.requestTitle,
+        request_reason: parsed.requestReason,
+        request_data_content: parsed.requestDataContent,
+        processor: parsed.processor,
+      }
+      // finishTime 有值才传，空值由后端 DEFAULT NOW() 处理
+      if (parsed.finishTime) body.finish_time = parsed.finishTime
+
+      const addResult = await apiRequest('/api/ledger', { method: 'POST', body: JSON.stringify(body) })
+      ledgerId = addResult.id
+    }
+
+    let msg = needUpdate ? '台账已更新' : '台账已写入'
+
+    if (recordCount > 0 && requestNo) {
+      await apiRequest('/api/extraction', {
+        method: 'POST',
+        body: JSON.stringify({
+          request_no: requestNo,
+          record_count: recordCount,
+          extractor: extractor || undefined,
+          supervisor: supervisor || undefined,
+          remark: remark || undefined,
+        })
+      })
+      msg += `，提取记录已登记（${recordCount}条）`
+    }
+
+    showMsg('msg-area', msg, 'success')
+  } catch (e) {
+    if (e.message !== '__CANCELLED__') {
+      showMsg('msg-area', `写入失败：${e.message}`, 'error')
+    }
+  } finally {
+    $('btn-write').disabled = false
+  }
+})
+
+// ============ Tab 切换 ============
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+    tab.classList.add('active')
+    $(`tab-${tab.dataset.tab}`).classList.add('active')
+  })
+})
+
+// ============ 设置页逻辑 ============
+async function loadSettings() {
+  const { apiUrl, apiToken, userInfo } = await getSettings()
+  $('api-url').value = apiUrl
+  $('api-token').value = apiToken
+  updateConnectionStatus(userInfo, apiToken)
+  // 自动填充取数人
+  if (userInfo && !$('extractor').value) {
+    $('extractor').value = userInfo.displayName || userInfo.username || ''
+  }
+}
+
+function updateConnectionStatus(userInfo, token) {
+  const el = $('connection-status')
+  if (token && userInfo) {
+    el.innerHTML = `<span style="color:#52c41a">&#10003; 已连接：${userInfo.displayName || userInfo.username} (${userInfo.roleName || userInfo.role || ''})</span>`
+  } else if (token) {
+    el.innerHTML = `<span style="color:#faad14">&#9888; Token已配置，但验证失败</span>`
+  } else {
+    el.innerHTML = `<span style="color:#ff4d4f">&#10007; 未配置 Token</span>`
+  }
+}
+
+$('btn-save-settings').addEventListener('click', async () => {
+  const apiUrl = $('api-url').value.trim() || DEFAULT_API_URL
+  const apiToken = $('api-token').value.trim()
+  if (!apiToken) {
+    showMsg('settings-msg-area', '请输入 Token', 'error')
+    return
+  }
+  if (!apiToken.startsWith('dtt_')) {
+    showMsg('settings-msg-area', 'Token 应以 dtt_ 开头，请在主应用「API Token」中创建', 'error')
+    return
+  }
+  await saveSettings({ apiUrl, apiToken })
+  // 验证token
+  try {
+    const user = await apiRequest('/api/auth/me')
+    await saveSettings({ userInfo: user })
+    updateConnectionStatus(user, apiToken)
+    if (user && !$('extractor').value) $('extractor').value = user.displayName || user.username || ''
+    showMsg('settings-msg-area', `连接成功：${user.displayName || user.username}`, 'success')
+  } catch (e) {
+    await saveSettings({ userInfo: null })
+    updateConnectionStatus(null, apiToken)
+    showMsg('settings-msg-area', `验证失败：${e.message}`, 'error')
+  }
+})
+
+$('btn-clear-token').addEventListener('click', async () => {
+  await saveSettings({ apiToken: '', userInfo: null })
+  $('api-token').value = ''
+  updateConnectionStatus(null, '')
+  showMsg('settings-msg-area', 'Token 已清除', 'success')
+})
+
+// ============ 初始化：OA页面自动解析 ============
+async function init() {
+  await loadSettings()
+
+  // 如果当前页面是目标OA页面，自动解析
+  const isOA = await isTargetPage()
+  if (isOA) {
+    $('page-indicator').style.display = ''
+    $('page-indicator').textContent = 'OA数据需求页面已识别'
+    $('page-indicator').className = 'msg info'
+    // 稍等页面加载完成后自动解析
+    setTimeout(() => {
+      $('btn-parse').click()
+    }, 1000)
+  } else {
+    $('page-indicator').style.display = 'none'
+  }
+
+  // 获取监督人候选列表
+  try {
+    const names = await apiRequest('/api/users/display-names')
+    if (names && names.length > 0) {
+      const datalist = $('supervisor-list')
+      datalist.innerHTML = names.map(n => `<option value="${n}">`).join('')
+    }
+  } catch {}
+}
+
+init()

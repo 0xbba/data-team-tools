@@ -114,9 +114,14 @@ router.put('/:id', requirePerm('ledger_edit'), async (req, res) => {
     let idx = 1
     for (const [k, v] of Object.entries(fields)) {
       if (['request_no','request_time','applicant','applicant_phone','applicant_dept','request_title','request_reason','request_data_content','processor','finish_time'].includes(k)) {
-        sets.push(`${k} = $${idx}`)
-        vals.push(v ?? null)
-        idx++
+        // finish_time 空值 → NOW()（与 POST 语义一致：空值=使用当前时间）
+        if (k === 'finish_time' && !v) {
+          sets.push(`finish_time = NOW()`)
+        } else {
+          sets.push(`${k} = $${idx}`)
+          vals.push(k === 'finish_time' && v === '' ? null : (v ?? null))
+          idx++
+        }
       }
     }
     if (sets.length === 0) return res.json({ success: true, unchanged: true })

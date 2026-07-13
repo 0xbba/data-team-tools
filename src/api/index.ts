@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { authHeaders, jsonHeaders } from '../utils/auth'
-import type { MappingItem, LedgerRecord, LogEntry, RoleForm, UserForm, ExtractionRecord } from '../types'
+import type { MappingItem, LedgerRecord, LogEntry, RoleForm, UserForm, ExtractionRecord, ApiToken } from '../types'
 
 const BASE = ''
 
@@ -129,7 +129,7 @@ export const Api = {
       applicant_dept: record.applicantDept, request_title: record.requestTitle,
       request_reason: record.requestReason, request_data_content: record.requestDataContent,
       processor: record.processor,
-      finish_time: record.finishTime || '',
+      finish_time: record.finishTime || null,
     }
     return request('/api/ledger', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(body) })
   },
@@ -197,4 +197,11 @@ export const Api = {
   async roleUpdate(id: number, data: Partial<RoleForm>) { return request(`/api/roles/${id}`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(data) }) },
   async roleDelete(id: number) { return request(`/api/roles/${id}`, { method: 'DELETE' }) },
   async permissionsList() { return request<any[]>('/api/permissions') },
+
+  // ============ API Token ============
+  async tokenGenerate(name: string, expiresIn: string = 'never') {
+    return request<ApiToken>('/api/auth/tokens', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ name, expires_in: expiresIn }) })
+  },
+  async tokenList() { return request<ApiToken[]>('/api/auth/tokens') },
+  async tokenRevoke(id: number) { return request(`/api/auth/tokens/${id}`, { method: 'DELETE' }) },
 }

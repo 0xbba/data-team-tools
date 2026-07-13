@@ -101,3 +101,14 @@ export interface RoleForm {
   roleName: string
   permissions: string[]
 }
+
+// ============ API Token ============
+export interface ApiToken {
+  id: number
+  name: string
+  token?: string      // 仅在创建时返回
+  lastUsed?: string | null
+  expiresAt?: string | null
+  expired?: boolean
+  createDate: string
+}

@@ -138,6 +138,19 @@ export async function ensureSchemaAndTables() {
         )`,
         index: `CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_key ON ${pgSchema}.dt_roles (role_key)`,
       },
+      {
+        name: 'dt_api_tokens',
+        ddl: `CREATE TABLE IF NOT EXISTS ${pgSchema}.dt_api_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES ${pgSchema}.dt_users(id),
+          token_hash TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL DEFAULT 'default',
+          last_used TIMESTAMP,
+          expires_at TIMESTAMP,
+          create_date TIMESTAMP NOT NULL DEFAULT NOW()
+        )`,
+        index: `CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON ${pgSchema}.dt_api_tokens (user_id)`,
+      },
     ]
 
     for (const t of tables) {
@@ -154,6 +167,16 @@ export async function ensureSchemaAndTables() {
     if (remarkCol.rows.length === 0) {
       await client.query(`ALTER TABLE ${pgSchema}.dt_data_extraction_records ADD COLUMN remark TEXT`)
       console.log('[init] 已为 dt_data_extraction_records 添加 remark 列')
+    }
+
+    // 迁移：为已存在的 dt_api_tokens 表补充 expires_at 列
+    const expiresAtCol = await client.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'dt_api_tokens' AND column_name = 'expires_at'`,
+      [pgSchema]
+    )
+    if (expiresAtCol.rows.length === 0) {
+      await client.query(`ALTER TABLE ${pgSchema}.dt_api_tokens ADD COLUMN expires_at TIMESTAMP`)
+      console.log('[init] 已为 dt_api_tokens 添加 expires_at 列')
     }
 
     // 创建默认角色（仅在 roles 表为空时）

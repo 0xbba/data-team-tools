@@ -13,6 +13,7 @@ import rolesRoutes from './routes/roles.js'
 import translationsRoutes from './routes/translations.js'
 import extractionRoutes from './routes/extraction.js'
 import ledgerRoutes from './routes/ledger.js'
+import tokensRoutes, { apiTokenMiddleware } from './routes/tokens.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -35,7 +36,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const publicPaths = ['/health', '/auth/login']
 app.use('/api', (req, res, next) => {
   if (publicPaths.includes(req.path)) return next()
-  authMiddleware(req, res, next)
+  // 先尝试 API Token 认证（Chrome 扩展等外部调用）
+  apiTokenMiddleware(req, res, () => {
+    // 若未通过 API Token 认证，走 JWT 认证
+    if (req.user) return next()
+    authMiddleware(req, res, next)
+  })
 })
 
 // ============ 挂载路由模块 ============
@@ -45,6 +51,7 @@ app.use('/api/roles', rolesRoutes)
 app.use('/api/translations', translationsRoutes)
 app.use('/api/extraction', extractionRoutes)
 app.use('/api/ledger', ledgerRoutes)
+app.use('/api/auth/tokens', tokensRoutes)
 
 // ============ 零散路由（不值得单独文件）============
 

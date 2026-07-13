@@ -38,6 +38,7 @@ import AppLayout from './components/layout/AppLayout'
 import ImportConflictModal from './components/modals/ImportConflictModal'
 import LogModal from './components/modals/LogModal'
 import PasswordModal from './components/modals/PasswordModal'
+import TokenModal from './components/modals/TokenModal'
 
 
 // 错误边界组件
@@ -110,6 +111,7 @@ function AppContent() {
   // ============ 已删除记录状态（翻译管理） ============
   const [showDeleted, setShowDeleted] = useState(false)
   const [deletedData, setDeletedData] = useState<MappingItem[]>([])
+  const [tokenModalOpen, setTokenModalOpen] = useState(false)
 
   // ============ 各功能 Hooks ============
   const mappingHook = useMapping(dataMode, offlineMode, dbUrl, message)
@@ -271,12 +273,14 @@ function AppContent() {
         onLogout={() => { logout(); setTab('translate'); setOpenTabs([{ key: 'translate', label: '翻译' }]) }}
         onChangePassword={() => setPasswordModalOpen(true)}
         onDismissDbError={() => setDbError('')}
+        onTokenManage={() => setTokenModalOpen(true)}
       />
 
       {/* 公共弹窗 */}
       <ImportConflictModal open={!!manageHook.importConflicts} conflicts={manageHook.importConflicts || []} onConfirm={manageHook.confirmImportConflicts} onCancel={() => manageHook.setImportConflicts(null)} />
       <LogModal open={manageHook.logModalOpen} data={manageHook.logData} total={manageHook.logTotal} page={manageHook.logPage} totalPages={manageHook.logTotalPages} onPageChange={manageHook.setLogPage} onClose={() => manageHook.setLogModalOpen(false)} />
       <PasswordModal open={passwordModalOpen} loading={pwdLoading} oldPwd={pwdOld} newPwd={pwdNew} newPwd2={pwdNew2} onOldPwdChange={setPwdOld} onNewPwdChange={setPwdNew} onNewPwd2Change={setPwdNew2} onOk={handleChangePassword} onCancel={() => setPasswordModalOpen(false)} />
+      <TokenModal open={tokenModalOpen} onCancel={() => setTokenModalOpen(false)} />
     </AppContext.Provider>
   )
 }

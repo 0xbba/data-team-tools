@@ -2,7 +2,7 @@ import React from 'react'
 import { Layout, Menu, Typography, Button, Tag, Tooltip, Popover, Tabs, Avatar, Dropdown, Space } from 'antd'
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined, LogoutOutlined,
-  LockOutlined as LockOutlinedRev, GlobalOutlined,
+  LockOutlined as LockOutlinedRev, GlobalOutlined, KeyOutlined,
 } from '@ant-design/icons'
 import type { AuthUser } from '../../Login'
 import type { TabItem } from '../../types'
@@ -33,6 +33,7 @@ export interface AppLayoutProps {
   onSiderOpenChange: (keys: string[]) => void
   onLogout: () => void
   onChangePassword: () => void
+  onTokenManage: () => void
   onDismissDbError: () => void
 }
 
@@ -55,6 +56,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   onSiderOpenChange,
   onLogout,
   onChangePassword,
+  onTokenManage,
   onDismissDbError,
 }) => {
   return (
@@ -104,6 +106,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                 { key: 'info', label: <Space size={4}><span style={{ fontWeight: 600 }}>{currentUser.displayName}</span><Tag color={isAdmin ? 'blue' : 'default'}>{currentUser.roleName || currentUser.role}</Tag></Space>, disabled: true },
                 { type: 'divider' as const },
                 { key: 'password', icon: <LockOutlinedRev />, label: '修改密码', onClick: onChangePassword },
+                { key: 'tokens', icon: <KeyOutlined />, label: 'API Token', onClick: onTokenManage },
                 { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true, onClick: onLogout },
               ],
             }}
