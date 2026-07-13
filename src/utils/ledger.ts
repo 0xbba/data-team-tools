@@ -35,8 +35,9 @@ export function parseLedgerText(text: string): Omit<LedgerRecord, '_dbId' | '_de
       const beforeColon = colonMatch[1].trim()
       // 已知标签 → 停止
       if (knownLabels.has(beforeColon)) return true
-      // 短标签（<=4字，纯中文字符，不含空格/数字/标点）→ 停止
-      if (beforeColon.length <= 4 && /^[^\s\d，。、；""''（）\[\]【】]+$/.test(beforeColon)) return true
+      // 短标签（<=4字，纯中文字符，不含空格/数字/标点）且值较短（<=50字）→ 停止
+      // 值过长说明冒号是正文中出现的，不是新字段
+      if (beforeColon.length <= 4 && /^[^\s\d，。、；""''（）\[\]【】]+$/.test(beforeColon) && colonMatch[2].length <= 50) return true
       // 否则是值中含冒号，不停止
       return false
     }
