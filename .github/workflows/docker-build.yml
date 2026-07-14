@@ -3,6 +3,18 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [main]
+    paths:
+      - 'server/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'tsconfig.app.json'
+      - 'tsconfig.node.json'
+      - 'Dockerfile'
   workflow_dispatch:  # 支持手动触发
 
 jobs:

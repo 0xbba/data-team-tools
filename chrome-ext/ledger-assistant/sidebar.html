@@ -4,13 +4,23 @@
   <meta charset="UTF-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; color: rgba(0,0,0,0.88); background: #f5f5f5; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; color: rgba(0,0,0,0.88); background: #f5f5f5; padding-top: 37px; padding-bottom: 52px; }
 
     .section { background: #fff; margin: 8px; border-radius: 8px; padding: 12px; border: 1px solid #f0f0f0; }
-    .section-title { font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.65); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-    .section-title .badge { font-size: 10px; background: #52c41a; color: #fff; padding: 1px 6px; border-radius: 10px; }
+    .section-title { font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.65); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; cursor: default; }
+    .section-title .badge { font-size: 10px; background: #52c41a; color: #fff; padding: 1px 6px; border-radius: 10px; cursor: default; }
     .section-title .badge.warn { background: #faad14; }
     .section-title .badge.error { background: #ff4d4f; }
+    .section-title .badge.info { background: #1677ff; }
+    .section-title .badge.deleted { background: #faad14; color: rgba(0,0,0,0.65); }
+    /* 台账状态 badge + CSS tooltip */
+    .ledger-badge { position: relative; cursor: pointer; }
+    .ledger-badge .tooltip { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 6px; background: rgba(0,0,0,0.85); color: #fff; font-size: 11px; font-weight: 400; padding: 6px 10px; border-radius: 6px; white-space: nowrap; z-index: 200; line-height: 1.6; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .ledger-badge .tooltip::before { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-bottom-color: rgba(0,0,0,0.85); }
+    .ledger-badge:hover .tooltip { display: block; }
+    .ledger-badge .tooltip .tip-row { display: flex; gap: 4px; }
+    .ledger-badge .tooltip .tip-label { color: rgba(255,255,255,0.55); }
+    .ledger-badge .tooltip .tip-value { color: #fff; }
 
     .field-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; font-size: 12px; }
     .field-label { color: rgba(0,0,0,0.45); flex-shrink: 0; width: 70px; text-align: right; line-height: 28px; }
@@ -41,7 +51,7 @@
 
     .empty { text-align: center; color: rgba(0,0,0,0.25); padding: 24px 0; font-size: 12px; }
 
-    .tabs { display: flex; gap: 0; margin: 8px 8px 0; }
+    .tabs { display: flex; gap: 0; margin: 0; position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: #f5f5f5; padding: 0; }
     .tab { flex: 1; text-align: center; padding: 8px; font-size: 12px; font-weight: 500; background: #fff; border: 1px solid #f0f0f0; cursor: pointer; color: rgba(0,0,0,0.65); }
     .tab:first-child { border-radius: 8px 0 0 0; }
     .tab:last-child { border-radius: 0 8px 0 0; }
@@ -51,14 +61,36 @@
 
     #connection-status { font-size: 12px; margin-bottom: 8px; }
 
-    #page-indicator { margin: 8px 8px 0; }
-
     .hint { font-size: 11px; color: rgba(0,0,0,0.45); line-height: 1.5; margin-top: 4px; }
+
+    /* 提取记录列表 */
+    .ext-card { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
+    .ext-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .ext-card-count { font-weight: 600; color: rgba(0,0,0,0.88); }
+    .ext-card-date { color: rgba(0,0,0,0.45); }
+    .ext-card-detail { color: rgba(0,0,0,0.65); line-height: 1.6; }
+    .ext-card.deleted { opacity: 0.5; text-decoration: line-through; }
+
+    /* 可折叠区域 */
+    .collapsible-header { cursor: pointer; user-select: none; }
+    .collapsible-header .collapse-icon { font-size: 10px; transition: transform 0.2s; display: inline-block; margin-left: auto; color: rgba(0,0,0,0.45); }
+    .collapsible-header .collapse-icon.collapsed { transform: rotate(-90deg); }
+    .collapsible-body { overflow: hidden; transition: max-height 0.2s ease; }
+    .collapsible-body.collapsed { max-height: 0 !important; }
+
+    /* 底部固定操作栏 */
+    .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #f0f0f0; padding: 8px 12px; z-index: 100; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+    .sticky-bottom .actions { margin-top: 0; }
+
+    /* Toast 提示（浮层，不占空间） */
+    .toast { position: fixed; top: 44px; left: 50%; transform: translateX(-50%); z-index: 200; padding: 6px 16px; border-radius: 6px; font-size: 12px; max-width: 90%; word-break: break-all; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: toastIn 0.2s ease; pointer-events: none; }
+    .toast.success { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+    .toast.error { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+    .toast.info { background: #e6f4ff; color: #1677ff; border: 1px solid #91caff; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
   </style>
 </head>
 <body>
-  <div id="page-indicator" style="display:none"></div>
-
   <div class="tabs">
     <div class="tab active" data-tab="parse">解析写入</div>
     <div class="tab" data-tab="settings">设置</div>
@@ -70,6 +102,7 @@
       <div class="section-title">
         解析结果
         <span class="badge" id="parse-status" style="display:none"></span>
+        <span class="badge" id="ledger-status-badge" style="display:none"></span>
       </div>
       <div id="parse-result">
         <div class="empty">点击下方按钮解析当前页面</div>
@@ -77,7 +110,7 @@
     </div>
 
     <div class="section" id="extraction-section" style="display:none">
-      <div class="section-title">提取记录</div>
+      <div class="section-title">新增提取记录</div>
       <div class="extraction-form">
         <div class="form-row">
           <label>数据条数</label>
@@ -99,12 +132,23 @@
       </div>
     </div>
 
-    <div class="section">
-      <div class="actions">
-        <button class="btn-default" id="btn-parse">解析页面</button>
-        <button class="btn-primary" id="btn-write" disabled>写入台账</button>
+    <div class="section" id="extraction-records-section" style="display:none">
+      <div class="section-title collapsible-header" id="ext-records-toggle">
+        历史提取记录
+        <span class="badge" id="ext-count-badge" style="display:none"></span>
+        <span class="collapse-icon collapsed">&#9660;</span>
       </div>
-      <div id="msg-area"></div>
+      <div class="collapsible-body collapsed" id="ext-records-body">
+        <div id="extraction-records-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部固定操作栏 -->
+  <div class="sticky-bottom" id="sticky-bar">
+    <div class="actions">
+      <button class="btn-default" id="btn-parse">解析页面</button>
+      <button class="btn-primary" id="btn-write" disabled>写入台账</button>
     </div>
   </div>
 

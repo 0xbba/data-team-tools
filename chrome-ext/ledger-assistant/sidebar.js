@@ -2,14 +2,37 @@
 function $(id) { return document.getElementById(id) }
 
 function showMsg(containerId, text, type = 'info') {
-  const el = $(containerId)
-  el.innerHTML = `<div class="msg ${type}">${text}</div>`
-  if (type !== 'error') setTimeout(() => { if (el.querySelector('.msg')?.textContent === text) el.innerHTML = '' }, 5000)
+  // settings-msg-area 仍用内联方式
+  if (containerId === 'settings-msg-area') {
+    const el = $(containerId)
+    el.innerHTML = `<div class="msg ${type}">${text}</div>`
+    if (type !== 'error') setTimeout(() => { if (el.querySelector('.msg')?.textContent === text) el.innerHTML = '' }, 5000)
+    return
+  }
+
+  // 其他区域用 toast 浮层，不占空间
+  const old = document.getElementById('toast-msg')
+  if (old) old.remove()
+
+  const toast = document.createElement('div')
+  toast.id = 'toast-msg'
+  toast.className = `toast ${type}`
+  toast.textContent = text
+  document.body.appendChild(toast)
+
+  const duration = type === 'error' ? 6000 : 4000
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.style.opacity = '0'
+      toast.style.transition = 'opacity 0.3s'
+      setTimeout(() => toast.remove(), 300)
+    }
+  }, duration)
 }
 
 // ============ 设置管理 ============
 const DEFAULT_API_URL = 'http://localhost:3456'
-const TARGET_URL_PATTERN = 'scitsmpro.paas.sc.ctc.com'
+const TARGET_URL_PATTERN = 'scitsmpro.paas.sc.ctc.com/aiops/app/form/'
 
 async function getSettings() {
   return new Promise(resolve => {
@@ -50,6 +73,9 @@ async function extractPageData() {
 
   // 方法1：尝试 DOM 结构化提取（content script 的 EXTRACT_DOM 消息）
   const isOA = tab.url?.includes(TARGET_URL_PATTERN)
+  if (!isOA) {
+    throw new Error('当前页面不是OA数据需求页面，无法解析')
+  }
   if (isOA) {
     try {
       // 先尝试发消息，确认 content script 是否已注入
@@ -120,8 +146,16 @@ async function isTargetPage() {
   return tab?.url?.includes(TARGET_URL_PATTERN) || false
 }
 
+// 判断当前标签页URL是否匹配（同步版本，用于 extractPageData）
+async function isOATab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!tab?.url?.includes(TARGET_URL_PATTERN)) return false
+  return true
+}
+
 // ============ 渲染解析结果 ============
 let currentParsed = null
+let currentExistingRecord = null // 解析后查询到的已存在台账记录
 
 // 字段定义：[label, key, type]  type: 'input' | 'textarea' | 'finishTime'
 const PARSE_FIELDS = [
@@ -149,6 +183,9 @@ function renderParsed(record) {
     status.style.display = ''
     $('btn-write').disabled = true
     $('extraction-section').style.display = 'none'
+    $('extraction-records-section').style.display = 'none'
+    $('ledger-status-badge').style.display = 'none'
+    currentExistingRecord = null
     return
   }
 
@@ -174,9 +211,119 @@ function renderParsed(record) {
   $('extraction-section').style.display = ''
 }
 
+// ============ 台账存在状态查询与渲染 ============
+async function checkAndRenderLedgerStatus(requestNo) {
+  const badge = $('ledger-status-badge')
+  if (!requestNo) {
+    badge.style.display = 'none'
+    currentExistingRecord = null
+    return
+  }
+
+  try {
+    const check = await apiRequest(`/api/ledger/check/${encodeURIComponent(requestNo)}`)
+    currentExistingRecord = check.exists ? check.record : null
+
+    if (check.exists) {
+      const rec = check.record
+      const processor = rec.processor || '-'
+      const finishTime = rec.finishTime ? formatLocalTime(rec.finishTime) : '进行中'
+      badge.className = 'badge ledger-badge'
+      badge.textContent = '已存在'
+      badge.innerHTML = `已存在<div class="tooltip"><div class="tip-row"><span class="tip-label">处理人</span><span class="tip-value">${escHtml(processor)}</span></div><div class="tip-row"><span class="tip-label">完成时间</span><span class="tip-value">${escHtml(finishTime)}</span></div></div>`
+      badge.style.display = ''
+    } else if (check.deletedRecord) {
+      badge.className = 'badge deleted ledger-badge'
+      badge.innerHTML = `已删除<div class="tooltip"><div class="tip-row"><span class="tip-value">台账记录已被删除，写入时将恢复</span></div></div>`
+      badge.style.display = ''
+    } else {
+      badge.className = 'badge info ledger-badge'
+      badge.innerHTML = `新单号<div class="tooltip"><div class="tip-row"><span class="tip-value">尚未录入台账</span></div></div>`
+      badge.style.display = ''
+    }
+  } catch (e) {
+    console.warn('台账状态查询失败:', e)
+    badge.style.display = 'none'
+    currentExistingRecord = null
+  }
+}
+
+// ============ 提取记录查询与渲染 ============
+async function fetchAndRenderExtractionRecords(requestNo) {
+  const section = $('extraction-records-section')
+  const listEl = $('extraction-records-list')
+  const badge = $('ext-count-badge')
+
+  if (!requestNo) {
+    section.style.display = 'none'
+    return
+  }
+
+  try {
+    const records = await apiRequest(`/api/extraction/${encodeURIComponent(requestNo)}`)
+    const visibleRecords = records.filter(r => r.isVisible)
+    const deletedRecords = records.filter(r => !r.isVisible)
+
+    section.style.display = ''
+
+    if (records.length === 0) {
+      listEl.innerHTML = '<div class="empty">暂无提取记录</div>'
+      badge.style.display = 'none'
+      return
+    }
+
+    badge.textContent = `${visibleRecords.length}条`
+    badge.className = 'badge'
+    badge.style.display = ''
+
+    let html = ''
+    for (const r of visibleRecords) {
+      html += renderExtCard(r)
+    }
+    for (const r of deletedRecords) {
+      html += renderExtCard(r, true)
+    }
+    listEl.innerHTML = html
+    // 如果当前处于展开状态，更新 maxHeight
+    const body = $('ext-records-body')
+    if (!body.classList.contains('collapsed')) {
+      body.style.maxHeight = body.scrollHeight + 'px'
+    }
+  } catch (e) {
+    console.warn('提取记录查询失败:', e)
+    section.style.display = 'none'
+  }
+}
+
+function renderExtCard(r, isDeleted = false) {
+  const date = r.createDate ? new Date(r.createDate).toLocaleString('zh-CN', { hour12: false }) : '-'
+  const cls = isDeleted ? 'ext-card deleted' : 'ext-card'
+  const tag = isDeleted ? ' <span style="color:#ff4d4f;font-size:10px;">[已删除]</span>' : ''
+  return `
+    <div class="${cls}">
+      <div class="ext-card-header">
+        <span class="ext-card-count">${r.recordCount || 0} 条${tag}</span>
+        <span class="ext-card-date">${escHtml(date)}</span>
+      </div>
+      <div class="ext-card-detail">
+        取数人: ${escHtml(r.extractor || '-')} | 监督人: ${escHtml(r.supervisor || '-')}
+        ${r.remark ? '<br>备注: ' + escHtml(r.remark) : ''}
+      </div>
+    </div>
+  `
+}
+
 // 辅助：HTML 转义
 function escHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 function escAttr(s) { return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;') }
+
+// 辅助：时间字符串转本地可读格式（处理UTC/ISO格式）
+function formatLocalTime(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return s
+  return d.toLocaleString('zh-CN', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
 
 // 从当前 input/textarea 读取最新解析值
 function getCurrentParsedValues() {
@@ -195,11 +342,14 @@ function getCurrentParsedValues() {
 $('btn-parse').addEventListener('click', async () => {
   try {
     $('btn-parse').disabled = true
-    showMsg('msg-area', '正在提取页面数据并解析...', 'info')
     const { record, method } = await extractPageData()
     renderParsed(record)
     if (record) {
-      showMsg('msg-area', `解析成功（${method === 'DOM' ? '结构化' : '文本'}），单号：${record.requestNo || '未知'}`, 'success')
+      // 解析成功后，查台账状态和提取记录
+      if (record.requestNo) {
+        checkAndRenderLedgerStatus(record.requestNo)
+        fetchAndRenderExtractionRecords(record.requestNo)
+      }
     } else {
       showMsg('msg-area', '未能识别出台账信息，请确认页面内容', 'error')
     }
@@ -470,12 +620,31 @@ $('btn-write').addEventListener('click', async () => {
     }
 
     showMsg('msg-area', msg, 'success')
+    // 写入成功后刷新状态和提取记录
+    if (requestNo) {
+      checkAndRenderLedgerStatus(requestNo)
+      fetchAndRenderExtractionRecords(requestNo)
+    }
   } catch (e) {
     if (e.message !== '__CANCELLED__') {
       showMsg('msg-area', `写入失败：${e.message}`, 'error')
     }
   } finally {
     $('btn-write').disabled = false
+  }
+})
+
+// ============ 折叠切换 ============
+$('ext-records-toggle').addEventListener('click', () => {
+  const body = $('ext-records-body')
+  const icon = $('ext-records-toggle').querySelector('.collapse-icon')
+  if (body.classList.contains('collapsed')) {
+    body.classList.remove('collapsed')
+    body.style.maxHeight = body.scrollHeight + 'px'
+    icon.classList.remove('collapsed')
+  } else {
+    body.classList.add('collapsed')
+    icon.classList.add('collapsed')
   }
 })
 
@@ -486,6 +655,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
     tab.classList.add('active')
     $(`tab-${tab.dataset.tab}`).classList.add('active')
+    // 设置页隐藏底部操作栏
+    $('sticky-bar').style.display = tab.dataset.tab === 'parse' ? '' : 'none'
   })
 })
 
@@ -545,22 +716,17 @@ $('btn-clear-token').addEventListener('click', async () => {
   showMsg('settings-msg-area', 'Token 已清除', 'success')
 })
 
-// ============ 初始化：OA页面自动解析 ============
+// ============ 初始化 ============
 async function init() {
   await loadSettings()
 
   // 如果当前页面是目标OA页面，自动解析
   const isOA = await isTargetPage()
   if (isOA) {
-    $('page-indicator').style.display = ''
-    $('page-indicator').textContent = 'OA数据需求页面已识别'
-    $('page-indicator').className = 'msg info'
     // 稍等页面加载完成后自动解析
     setTimeout(() => {
       $('btn-parse').click()
     }, 1000)
-  } else {
-    $('page-indicator').style.display = 'none'
   }
 
   // 获取监督人候选列表

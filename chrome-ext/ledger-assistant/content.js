@@ -7,9 +7,9 @@ if (window.__ledgerAssistantInjected) {
 
 const TARGET_HOST = 'scitsmpro.paas.sc.ctc.com'
 
-// 判断是否在目标OA页面
+// 判断是否在目标OA页面（精确匹配到表单路径）
 function isTargetPage() {
-  return location.hostname.includes('scitsmpro.paas.sc.ctc.com')
+  return location.href.includes('scitsmpro.paas.sc.ctc.com/aiops/app/form/')
 }
 
 // ============ DOM 结构化提取（优先于 innerText） ============

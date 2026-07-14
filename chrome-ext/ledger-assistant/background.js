@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
 // 监听标签页更新，在目标OA页面时更新图标提示
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (tab.url?.includes('scitsmpro.paas.sc.ctc.com')) {
+  if (tab.url?.includes('scitsmpro.paas.sc.ctc.com/aiops/app/form/')) {
     chrome.action.setBadgeText({ text: 'OA', tabId })
     chrome.action.setBadgeBackgroundColor({ color: '#1677ff', tabId })
   } else {
