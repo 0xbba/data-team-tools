@@ -5,7 +5,12 @@ import type { MappingItem, LedgerRecord, LogEntry, RoleForm, UserForm, Extractio
 const BASE = ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, { ...options, headers: { ...options?.headers, ...authHeaders() } })
+  let res: Response
+  try {
+    res = await fetch(BASE + path, { ...options, headers: { ...options?.headers, ...authHeaders() } })
+  } catch {
+    throw new Error('网络连接失败，请检查网络或服务是否可用')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error || `请求失败 (${res.status})`)
@@ -116,10 +121,10 @@ export const Api = {
     return mapPageResponse(raw, mapLedgerRecord)
   },
   async ledgerExportAll(search?: string): Promise<LedgerRecord[]> {
-    let url = '/api/ledger?page=1&pageSize=999999'
-    if (search) url += `&search=${encodeURIComponent(search)}`
-    const raw = await request<any>(url)
-    return (raw.rows ?? raw.data ?? []).map(mapLedgerRecord)
+    let url = '/api/ledger/export'
+    if (search) url += `?search=${encodeURIComponent(search)}`
+    const raw: any[] = await request(url)
+    return raw.map(mapLedgerRecord)
   },
   async ledgerAdd(record: Omit<LedgerRecord, '_dbId' | '_deleted'>) {
     // API expects snake_case

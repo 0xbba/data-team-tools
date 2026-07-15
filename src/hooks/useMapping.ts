@@ -114,7 +114,7 @@ export function useMapping(
     }))
   }, [mappingData])
 
-  // columns 变化时，对缓存中未匹配的字段实时查后台（数据库模式）
+  // columns 变化时，对缓存中未匹配的字段实时查后台（数据库模式），带防抖和竞态控制
   useEffect(() => {
     if (columns.length === 0 || dataMode === 'local' || offlineMode) return
     // 找出缓存中没有匹配的字段
@@ -122,20 +122,23 @@ export function useMapping(
       .filter(c => c.original && c.selectedAlt < 0 && c.alternatives.length === 0)
       .map(c => c.original)
     if (unmatchedFields.length === 0) return
-    // 向后台批量查询
-    Api.lookup(unmatchedFields).then(results => {
-      if (results.length === 0) return
-      // 合并到 mappingData（去重）
-      setMappingData(prev => {
-        const merged = [...prev]
-        for (const r of results) {
-          if (!merged.some(m => m.original === r.original && !m._deleted)) {
-            merged.push(r)
+    // 防抖 300ms，避免快速粘贴触发过多请求
+    let cancelled = false
+    const timer = setTimeout(() => {
+      Api.lookup(unmatchedFields).then(results => {
+        if (cancelled || results.length === 0) return
+        setMappingData(prev => {
+          const merged = [...prev]
+          for (const r of results) {
+            if (!merged.some(m => m.original === r.original && !m._deleted)) {
+              merged.push(r)
+            }
           }
-        }
-        return merged
-      })
-    }).catch(() => { /* 静默失败，不影响主流程 */ })
+          return merged
+        })
+      }).catch(() => { /* 静默失败，不影响主流程 */ })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [columns, dataMode, offlineMode])
 
   // ============ 翻译页操作 ============

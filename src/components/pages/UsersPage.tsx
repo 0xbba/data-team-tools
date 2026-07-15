@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Typography, Button, Table, Modal, Tag, Input, Select, Switch, Popconfirm, Tooltip } from 'antd'
-import { UserOutlined, LockOutlined as LockOutlinedRev, PlusOutlined, EditOutlined, StopOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined as LockOutlinedRev, PlusOutlined, EditOutlined, StopOutlined, SearchOutlined } from '@ant-design/icons'
 import type { MessageInstance } from 'antd/es/message/interface'
 import { Api } from '../../api'
+import { useIsSmallScreen } from '../../hooks/useResponsive'
+import { PAGE_SIZE_OPTIONS } from '../../constants'
 import type { UserForm } from '../../types'
 import type { AuthUser } from '../../Login'
 
@@ -15,23 +17,55 @@ interface UsersPageProps {
 }
 
 export default function UsersPage({ usersData, rolesData, fetchUsers, currentUser, message }: UsersPageProps) {
+  const isSmall = useIsSmallScreen()
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [userEditMode, setUserEditMode] = useState<'add' | 'edit'>('add')
   const [userEditId, setUserEditId] = useState<number | null>(null)
   const [userForm, setUserForm] = useState<UserForm>({ username: '', password: '', role: 'user', displayName: '', isActive: true })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [search, setSearch] = useState('')
+
+  const filteredData = useMemo(() => {
+    if (!search.trim()) return usersData
+    const s = search.toLowerCase()
+    return usersData.filter((u: any) =>
+      u.username?.toLowerCase().includes(s) ||
+      u.displayName?.toLowerCase().includes(s) ||
+      u.role?.toLowerCase().includes(s)
+    )
+  }, [usersData, search])
+
+  const paginatedData = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, page, pageSize])
+
   return (
     <div>
-      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography.Text strong>用户列表（共 {usersData.length} 人）</Typography.Text>
-        <Button type="primary" size="small" icon={<PlusOutlined style={{ fontSize: 14 }} />} onClick={() => {
-          setUserEditMode('add'); setUserEditId(null); setUserForm({ username: '', password: '', role: 'user', displayName: '', isActive: true }); setUserModalOpen(true)
-        }}>新增用户</Button>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <Typography.Text strong>用户列表（共 {filteredData.length} 人）</Typography.Text>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Input size="small" placeholder="搜索用户" prefix={<SearchOutlined style={{ fontSize: 14, color: 'rgba(0,0,0,0.45)' }} />} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} allowClear style={{ width: 160 }} />
+          <Button type="primary" size="small" icon={<PlusOutlined style={{ fontSize: 14 }} />} onClick={() => {
+            setUserEditMode('add'); setUserEditId(null); setUserForm({ username: '', password: '', role: 'user', displayName: '', isActive: true }); setUserModalOpen(true)
+          }}>新增用户</Button>
+        </div>
       </div>
       <Table
         size="small"
-        dataSource={usersData}
+        dataSource={paginatedData}
         rowKey="id"
-        pagination={false}
+        pagination={{
+          current: page,
+          pageSize: pageSize,
+          total: filteredData.length,
+          showSizeChanger: !isSmall,
+          pageSizeOptions: PAGE_SIZE_OPTIONS as unknown as (number | string)[],
+          onChange: (p, ps) => { setPage(p); setPageSize(ps) },
+          showTotal: (t) => `共 ${t} 条`,
+          size: isSmall ? 'small' : undefined,
+        }}
         scroll={{ x: 600 }}
         columns={[
           { title: 'ID', dataIndex: 'id', key: 'id', width: 50, sorter: (a, b) => a.id - b.id },
@@ -49,7 +83,7 @@ export default function UsersPage({ usersData, rolesData, fetchUsers, currentUse
                   setUserModalOpen(true)
                 }} icon={<EditOutlined style={{ fontSize: 14 }} />} /></Tooltip>
                 <Popconfirm title="确定禁用该用户？" onConfirm={async () => {
-                  try { await Api.userDelete(r.id); message.success('已禁用'); fetchUsers() } catch (err: any) { message.error(err.message) }
+                  try { await Api.userDelete(r.id); message.success('已禁用'); fetchUsers() } catch (err: any) { message.error(err.message); throw err }
                 }}>
                   <Tooltip title="禁用"><Button type="text" size="small" danger disabled={r.id === currentUser?.id || !r.isActive} icon={<StopOutlined style={{ fontSize: 14 }} />} /></Tooltip>
                 </Popconfirm>

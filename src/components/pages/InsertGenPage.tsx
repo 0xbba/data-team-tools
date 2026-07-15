@@ -178,7 +178,8 @@ export default function InsertGenPage({ insertHook }: InsertGenPageProps) {
                   const ext = insertDialect === 'pg' ? 'sql' : 'hql'
                   const blob = new Blob([insertResult], { type: 'text/plain;charset=utf-8' })
                   const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a'); a.href = url; a.download = `insert_${insertTableName}_${timestamp()}.${ext}`; a.click(); URL.revokeObjectURL(url)
+                  const a = document.createElement('a'); a.href = url; a.download = `insert_${insertTableName}_${timestamp()}.${ext}`; a.click()
+                  setTimeout(() => URL.revokeObjectURL(url), 1000)
                   message.success('文件已下载')
                 }} icon={<DownloadOutlined style={{ fontSize: 14 }} />}>下载文件</Button>
               </>

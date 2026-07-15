@@ -166,10 +166,28 @@ router.delete('/:id', requirePerm('ledger_delete'), async (req, res) => {
   }
 })
 
+// 导出台账全部数据（不分页，专用于导出）
+router.get('/export', requirePerm('ledger_view'), async (req, res) => {
+  try {
+    const { search } = req.query
+    let sql = 'SELECT id, request_no, request_time, applicant, applicant_phone, applicant_dept, request_title, request_reason, request_data_content, processor, finish_time, create_date FROM dt_data_request_ledger WHERE is_visible = true'
+    const params = []
+    if (search) {
+      sql += ' AND (request_no ILIKE $1 OR applicant ILIKE $1 OR applicant_dept ILIKE $1 OR request_title ILIKE $1 OR processor ILIKE $1)'
+      params.push(`%${search}%`)
+    }
+    sql += ' ORDER BY id DESC LIMIT 100000'
+    const result = await pool.query(sql, params)
+    res.json(result.rows)
+  } catch (err) {
+    console.error('[GET /api/ledger/export]', err)
+    res.status(500).json({ error: safeError(err) })
+  }
+})
+
 // 查询已删除台账记录
 router.get('/deleted', requirePerm('ledger_view'), async (req, res) => {
   try {
-    // LIMIT 500 防止超大数据量，前端当前期望数组格式
     const result = await pool.query(
       'SELECT id, request_no, request_time, applicant, applicant_phone, applicant_dept, request_title, request_reason, request_data_content, processor, finish_time, create_date, last_modified FROM dt_data_request_ledger WHERE is_visible = false ORDER BY last_modified DESC LIMIT 500'
     )

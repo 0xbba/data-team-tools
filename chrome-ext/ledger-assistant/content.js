@@ -13,6 +13,8 @@ function isTargetPage() {
 }
 
 // ============ DOM 结构化提取（优先于 innerText） ============
+// 注意：以下选择器依赖 Element UI 的 CSS 类名（el-form-item 等）。
+// OA 系统升级 Element UI 版本时可能需要更新。如 DOM 提取失败，自动回退到 innerText 文本解析。
 function extractFromDOM() {
   const result = {}
 
@@ -49,12 +51,11 @@ function extractFromDOM() {
     }
   }
 
-  // 2. 顶部信息：单号（可能是 span/div 等任意标签）
-  const allEls = document.querySelectorAll('*')
-  for (const el of allEls) {
-    // 只看没有子元素的叶子节点，避免匹配到父容器
-    if (el.children.length > 0) continue
-    const text = el.textContent?.trim()
+  // 2. 顶部信息：单号（用 TreeWalker 遍历文本节点，避免全量 DOM 遍历）
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null)
+  let textNode
+  while (textNode = walker.nextNode()) {
+    const text = textNode.textContent?.trim()
     if (text && /^DATA_\d+_\d+$/.test(text)) {
       result['单号'] = text
       break

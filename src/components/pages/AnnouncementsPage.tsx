@@ -4,15 +4,19 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined } from '@ant-d
 import dayjs from 'dayjs'
 import { Api } from '../../api'
 import { useAppContext } from '../../contexts/AppContext'
+import { useIsSmallScreen } from '../../hooks/useResponsive'
+import { PAGE_SIZE_OPTIONS } from '../../constants'
 import type { Announcement } from '../../types'
 
 const PAGE_SIZE = 10
 
 export default function AnnouncementsPage() {
   const { message } = useAppContext()
+  const isSmall = useIsSmallScreen()
   const [data, setData] = useState<Announcement[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -22,10 +26,10 @@ export default function AnnouncementsPage() {
   const [formIsActive, setFormIsActive] = useState(true)
   const [formExpiresAt, setFormExpiresAt] = useState<string | null>(null)
 
-  const fetchData = useCallback(async (p?: number) => {
+  const fetchData = useCallback(async (p?: number, ps?: number) => {
     setLoading(true)
     try {
-      const res = await Api.announcementAll(p || page, PAGE_SIZE)
+      const res = await Api.announcementAll(p || page, ps || pageSize)
       setData(res.data)
       setTotal(res.total)
     } catch (err: any) {
@@ -33,9 +37,9 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, message])
+  }, [page, pageSize, message])
 
-  useEffect(() => { fetchData() }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData() }, [page, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAdd = () => {
     setEditMode('add'); setEditId(null); setFormContent(''); setFormIsActive(true); setFormExpiresAt(null); setModalOpen(true)
@@ -104,17 +108,18 @@ export default function AnnouncementsPage() {
         loading={loading}
         pagination={{
           current: page,
-          pageSize: PAGE_SIZE,
+          pageSize: pageSize,
           total,
-          showSizeChanger: false,
-          onChange: (p) => setPage(p),
+          showSizeChanger: !isSmall,
+          pageSizeOptions: PAGE_SIZE_OPTIONS as unknown as (number | string)[],
+          onChange: (p, ps) => { setPage(p); setPageSize(ps) },
           showTotal: (t) => `共 ${t} 条`,
         }}
         scroll={{ x: 800 }}
         columns={[
           {
             title: '序号', key: '_idx', width: 60, align: 'center',
-            render: (_, __, idx) => (page - 1) * PAGE_SIZE + idx + 1,
+            render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
           },
           {
             title: '内容', dataIndex: 'content', key: 'content', ellipsis: true,

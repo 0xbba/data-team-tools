@@ -144,13 +144,7 @@ async function extractPageData() {
   }
 }
 
-// 判断当前页面是否为目标OA页面
-async function isTargetPage() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  return tab?.url?.includes(TARGET_URL_PATTERN) || false
-}
-
-// 判断当前标签页URL是否匹配（同步版本，用于 extractPageData）
+// 判断当前标签页是否为目标OA页面（合并原 isTargetPage 和 isOATab）
 async function isOATab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.url?.includes(TARGET_URL_PATTERN)) return false
@@ -765,12 +759,31 @@ async function init() {
   await loadSettings()
 
   // 如果当前页面是目标OA页面，自动解析
-  const isOA = await isTargetPage()
+  const isOA = await isOATab()
   if (isOA) {
-    // 稍等页面加载完成后自动解析
-    setTimeout(() => {
-      $('btn-parse').click()
-    }, 1000)
+    // 自动解析：等待页面动态内容加载后重试触发，最多3次
+    let parseAttempts = 0
+    const autoParse = async () => {
+      parseAttempts++
+      try {
+        const { record } = await extractPageData()
+        if (record?.requestNo || parseAttempts >= 3) {
+          renderParsed(record)
+          if (record?.requestNo) {
+            checkAndRenderLedgerStatus(record.requestNo)
+            fetchAndRenderExtractionRecords(record.requestNo)
+          } else if (parseAttempts >= 3) {
+            showMsg('msg-area', '页面内容尚未加载完成，请手动点击解析', 'info')
+          }
+        } else {
+          setTimeout(autoParse, 800)
+        }
+      } catch {
+        if (parseAttempts >= 3) $('btn-parse').click()
+        else setTimeout(autoParse, 800)
+      }
+    }
+    setTimeout(autoParse, 600)
   }
 
   // 获取监督人候选列表

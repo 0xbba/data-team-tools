@@ -120,7 +120,7 @@ export function useLedgerEntry(
               message.success('提取记录已登记')
             } catch (e: any) { message.error(e.message || '提取记录登记失败') }
           }
-          fetchLedger(); if (showDeletedLedger) fetchDeletedL()
+          void fetchLedger(); if (showDeletedLedger) void fetchDeletedL()
           setLedgerParsed(null); setLedgerPasteText('')
           clearExtraction(extractionSetters)
         } catch (e: any) { message.error(e.message || '恢复记录失败') }
@@ -197,7 +197,7 @@ export function useLedgerEntry(
           if (existing!._dbId && dataMode !== 'local' && !offlineMode) {
             try {
               if (Object.keys(fields).length > 0) await Api.ledgerUpdate(existing!._dbId, fields as Partial<LedgerRecord>)
-              message.success('已更新'); fetchLedger()
+              message.success('已更新'); void fetchLedger()
             } catch (e: any) { message.error(e.message || '更新失败') }
           } else {
             if (Object.keys(fields).length > 0) {
@@ -240,7 +240,7 @@ export function useLedgerEntry(
       } else {
         message.success('已写入台账')
       }
-      fetchLedger()
+      void fetchLedger()
       setLedgerParsed(null); setLedgerPasteText('')
       clearExtraction(extractionSetters)
     } catch (e: any) { message.error(e.message || '写入失败') }
@@ -248,7 +248,7 @@ export function useLedgerEntry(
 
   const deleteLedgerRecord = useCallback((record: LedgerRecord) => {
     if (dataMode !== 'local' && !offlineMode && record._dbId) {
-      Api.ledgerDelete(record._dbId).then(() => { message.success('已删除'); fetchLedger(); if (showDeletedLedger) fetchDeletedL() }).catch(e => message.error(e.message))
+      Api.ledgerDelete(record._dbId).then(() => { message.success('已删除'); void fetchLedger(); if (showDeletedLedger) void fetchDeletedL() }).catch(e => message.error(e.message))
       return
     }
     setLedgerData(prev => prev.map(r => r === record ? { ...r, _deleted: true } : r)); persistLocalLedger()
@@ -258,7 +258,7 @@ export function useLedgerEntry(
 
   const updateLedgerRecord = useCallback((id: number, changes: Partial<LedgerRecord>) => {
     if (dataMode !== 'local' && !offlineMode) {
-      Api.ledgerUpdate(id, changes).then(() => { message.success('已更新'); fetchLedger() }).catch(e => message.error(e.message))
+      Api.ledgerUpdate(id, changes).then(() => { message.success('已更新'); void fetchLedger() }).catch(e => message.error(e.message))
       return
     }
     setLedgerData(prev => prev.map(r => r._dbId === id ? { ...r, ...changes } : r)); persistLocalLedger(); message.success('已保存')
@@ -266,7 +266,7 @@ export function useLedgerEntry(
 
   const restoreLedgerRecord = useCallback((record: LedgerRecord) => {
     if (dataMode !== 'local' && !offlineMode && record._dbId) {
-      Api.ledgerRestore(record._dbId).then(() => { message.success('已恢复'); fetchLedger(); fetchDeletedL() }).catch(e => message.error(e.message))
+      Api.ledgerRestore(record._dbId).then(() => { message.success('已恢复'); void fetchLedger(); void fetchDeletedL() }).catch(e => message.error(e.message))
       return
     }
     setLedgerData(prev => prev.map(r => r === record ? { ...r, _deleted: false } : r)); persistLocalLedger()

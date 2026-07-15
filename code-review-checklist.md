@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '74485f16-d9d9-46c0-bf9e-e0edb391b6a7'
-  PropagateID: '74485f16-d9d9-46c0-bf9e-e0edb391b6a7'
-  ReservedCode1: '0bcded6c-387e-4e27-b5b7-ad9da8e65504'
-  ReservedCode2: '0bcded6c-387e-4e27-b5b7-ad9da8e65504'
+  ProduceID: '2e89ad94-62b5-4e7a-a81c-f1b1a9e309f7'
+  PropagateID: '2e89ad94-62b5-4e7a-a81c-f1b1a9e309f7'
+  ReservedCode1: 'be434c93-8bf5-4bee-9e2b-d9d5c6212af0'
+  ReservedCode2: 'be434c93-8bf5-4bee-9e2b-d9d5c6212af0'
 ---
 
 # data-team-tools 代码审查清单
@@ -57,20 +57,20 @@ AIGC:
 
 ## P3 - 可以后续优化
 
-- [ ] 34. **[Bug]** `useLedger.tsx:418` `fetchDeletedL` 不是 `useCallback`，每次渲染新引用
-- [ ] 35. **[Bug]** `useLedger.tsx:284,365` 多处 `fetchLedger()` 未 await
-- [ ] 36. **[规范]** `api/index.ts:118` `pageSize=999999` 硬编码导出全部，应专设导出API
-- [ ] 37. **[Bug]** `api/index.ts:18` `request` 函数无 try-catch 包裹，网络断开时 `fetch` 抛 TypeError 无友好提示
-- [ ] 38. **[Bug]** `storage.ts` `JSON.parse` 结果无结构校验，`localStorage.setItem` 无错误处理，无数据迁移机制
-- [ ] 39. **[Bug]** `useMapping.tsx:117` 实时查找 useEffect 无防抖无 AbortController，快速粘贴触发竞态
-- [ ] 40. **[性能]** `content.js:53` `querySelectorAll('*')` 全量遍历DOM，性能差
-- [ ] 41. **[Bug]** `manifest.json:26` `all_frames:true` 导致多 frame 的 `onMessage` 竞争响应
-- [ ] 42. **[脆弱]** `content.js:17-50` DOM提取强依赖 Element UI CSS类名，OA系统升级即失效
-- [ ] 43. **[规范]** `sidebar.js:144,150` `isTargetPage()` 和 `isOATab()` 功能完全重复
-- [ ] 44. **[Bug]** `sidebar.js:737` 自动解析 `setTimeout(1000)` 时机不可靠，侧边栏DOM可能未就绪
-- [ ] 45. **[UX]** `AnnouncementsPage.tsx` 无 `useIsSmallScreen` 响应式适配，无分页条数切换，与其他管理页不一致
-- [ ] 46. **[UX]** `UsersPage.tsx` 无分页、无搜索、删除操作 Popconfirm 不处理 Promise rejection
-- [ ] 47. **[Bug]** `RolesPage.tsx:124` `checkedKeys` 仅传叶子key，antd Tree 需要含半选父key才正确显示
-- [ ] 48. **[Bug]** `InsertGenPage.tsx:180` `URL.revokeObjectURL` 在 `a.click()` 后立即调用，浏览器可能未完成下载
+- [x] 34. **[Bug]** `useLedger.tsx:418` `fetchDeletedL` 不是 `useCallback`，每次渲染新引用
+- [x] 35. **[Bug]** `useLedger.tsx:284,365` 多处 `fetchLedger()` 未 await
+- [x] 36. **[规范]** `api/index.ts:118` `pageSize=999999` 硬编码导出全部，应专设导出API
+- [x] 37. **[Bug]** `api/index.ts:18` `request` 函数无 try-catch 包裹，网络断开时 `fetch` 抛 TypeError 无友好提示
+- [x] 38. **[Bug]** `storage.ts` `JSON.parse` 结果无结构校验，`localStorage.setItem` 无错误处理，无数据迁移机制
+- [x] 39. **[Bug]** `useMapping.tsx:117` 实时查找 useEffect 无防抖无 AbortController，快速粘贴触发竞态
+- [x] 40. **[性能]** `content.js:53` `querySelectorAll('*')` 全量遍历DOM，性能差
+- [x] 41. **[Bug]** `manifest.json:26` `all_frames:true` 导致多 frame 的 `onMessage` 竞争响应
+- [x] 42. **[脆弱]** `content.js:17-50` DOM提取强依赖 Element UI CSS类名，OA系统升级即失效
+- [x] 43. **[规范]** `sidebar.js:144,150` `isTargetPage()` 和 `isOATab()` 功能完全重复
+- [x] 44. **[Bug]** `sidebar.js:737` 自动解析 `setTimeout(1000)` 时机不可靠，侧边栏DOM可能未就绪
+- [x] 45. **[UX]** `AnnouncementsPage.tsx` 无 `useIsSmallScreen` 响应式适配，无分页条数切换，与其他管理页不一致
+- [x] 46. **[UX]** `UsersPage.tsx` 无分页、无搜索、删除操作 Popconfirm 不处理 Promise rejection
+- [x] 47. **[Bug]** `RolesPage.tsx:124` `checkedKeys` 仅传叶子key，antd Tree 需要含半选父key才正确显示
+- [x] 48. **[Bug]** `InsertGenPage.tsx:180` `URL.revokeObjectURL` 在 `a.click()` 后立即调用，浏览器可能未完成下载
 
 > AI生成

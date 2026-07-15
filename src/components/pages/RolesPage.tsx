@@ -83,7 +83,7 @@ export default function RolesPage({ rolesData, allPerms, fetchRoles, message }: 
                   setRoleModalOpen(true)
                 }} icon={<EditOutlined style={{ fontSize: 14 }} />} /></Tooltip>
                 <Popconfirm title="确定删除？" onConfirm={async () => {
-                  try { await Api.roleDelete(r.id); message.success('已删除'); fetchRoles() } catch (err: any) { message.error(err.message) }
+                  try { await Api.roleDelete(r.id); message.success('已删除'); fetchRoles() } catch (err: any) { message.error(err.message); throw err }
                 }}>
                   <Tooltip title="删除"><Button type="text" size="small" danger disabled={r.is_builtin} icon={<DeleteOutlined style={{ fontSize: 14 }} />} /></Tooltip>
                 </Popconfirm>
@@ -121,6 +121,7 @@ export default function RolesPage({ rolesData, allPerms, fetchRoles, message }: 
               checkable
               expandedKeys={permExpandedKeys}
               onExpand={(keys) => setPermExpandedKeys(keys as string[])}
+              // checkedKeys 仅传叶子节点，antd Tree 会自动推导半选父节点状态
               checkedKeys={roleForm.permissions.filter((k: string) => permLeafKeys.has(k))}
               onCheck={(checked: any) => {
                 const keys: string[] = Array.isArray(checked) ? checked : checked.checked

@@ -23,7 +23,7 @@
       "matches": ["https://scitsmpro.paas.sc.ctc.com/aiops/app/form/*"],
       "js": ["content.js"],
       "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": false
     }
   ],
   "icons": {
