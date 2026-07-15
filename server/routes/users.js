@@ -77,7 +77,7 @@ router.delete('/:id', requirePerm('user_manage'), async (req, res) => {
   try {
     const { id } = req.params
     if (Number(id) === req.user.id) return res.status(400).json({ error: '不能删除自己' })
-    await pool.query('DELETE FROM dt_users WHERE id = $1', [id])
+    await pool.query('UPDATE dt_users SET is_active = false, last_modified = NOW() WHERE id = $1', [id])
     res.json({ success: true })
   } catch (err) {
     console.error('[DELETE /api/users/:id]', err)

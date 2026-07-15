@@ -22,7 +22,9 @@ router.post('/', async (req, res) => {
     if (expires_in && expires_in !== 'never') {
       const days = Number(expires_in)
       if (days > 0) {
-        expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+        const d = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+        const pad = (n) => String(n).padStart(2, '0')
+        expiresAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
       }
     }
     const result = await pool.query(

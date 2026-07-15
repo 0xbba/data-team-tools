@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Typography, Button, Table, Modal, Tag, Input, Select, Switch, Popconfirm, Tooltip } from 'antd'
-import { UserOutlined, LockOutlined as LockOutlinedRev, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined as LockOutlinedRev, PlusOutlined, EditOutlined, StopOutlined } from '@ant-design/icons'
 import type { MessageInstance } from 'antd/es/message/interface'
 import { Api } from '../../api'
 import type { UserForm } from '../../types'
@@ -48,10 +48,10 @@ export default function UsersPage({ usersData, rolesData, fetchUsers, currentUse
                   setUserForm({ username: r.username, password: '', role: r.role, displayName: r.displayName, isActive: r.isActive })
                   setUserModalOpen(true)
                 }} icon={<EditOutlined style={{ fontSize: 14 }} />} /></Tooltip>
-                <Popconfirm title="确定删除？" onConfirm={async () => {
-                  try { await Api.userDelete(r.id); message.success('已删除'); fetchUsers() } catch (err: any) { message.error(err.message) }
+                <Popconfirm title="确定禁用该用户？" onConfirm={async () => {
+                  try { await Api.userDelete(r.id); message.success('已禁用'); fetchUsers() } catch (err: any) { message.error(err.message) }
                 }}>
-                  <Tooltip title="删除"><Button type="text" size="small" danger disabled={r.id === currentUser?.id} icon={<DeleteOutlined style={{ fontSize: 14 }} />} /></Tooltip>
+                  <Tooltip title="禁用"><Button type="text" size="small" danger disabled={r.id === currentUser?.id || !r.isActive} icon={<StopOutlined style={{ fontSize: 14 }} />} /></Tooltip>
                 </Popconfirm>
               </div>
             ),

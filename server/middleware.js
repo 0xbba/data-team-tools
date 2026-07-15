@@ -25,7 +25,7 @@ export function authMiddleware(req, res, next) {
 export function requirePerm(perm) {
   return async (req, res, next) => {
     try {
-      const result = await pool.query('SELECT r.permissions FROM dt_users u JOIN dt_roles r ON u.role = r.role_key WHERE u.id = $1', [req.user.id])
+      const result = await pool.query('SELECT r.permissions FROM dt_users u JOIN dt_roles r ON u.role = r.role_key WHERE u.id = $1 AND u.is_active = true', [req.user.id])
       const perms = result.rows[0]?.permissions || []
       if (!perms.includes(perm)) return res.status(403).json({ error: '权限不足' })
       next()

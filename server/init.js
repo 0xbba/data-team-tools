@@ -305,11 +305,21 @@ export async function ensureSchemaAndTables() {
       }
     }
 
-    // 确保内置角色权限完整（防止迁移丢失）
-    const adminFullPerms = JSON.stringify([...ALL_VALID_LEAF_KEYS])
-    const userBasicPerms = JSON.stringify(['translate','manage_view','manage_import','manage_edit','manage_log','insertgen','multidate','ledger_parse','ledger_view','ledger_edit','ledger_log'])
-    await client.query('UPDATE dt_roles SET permissions = $1 WHERE role_key = $2 AND is_builtin = true AND permissions != $1', [adminFullPerms, 'admin'])
-    await client.query('UPDATE dt_roles SET permissions = $1 WHERE role_key = $2 AND is_builtin = true AND permissions != $1', [userBasicPerms, 'user'])
+    // 确保内置角色包含必要权限（追加缺失的，不删除已有的自定义权限）
+    const adminRequiredPerms = [...ALL_VALID_LEAF_KEYS]
+    const userRequiredPerms = ['translate','manage_view','manage_import','manage_edit','manage_log','insertgen','multidate','ledger_parse','ledger_view','ledger_edit','ledger_log']
+    for (const [roleKey, requiredPerms] of [['admin', adminRequiredPerms], ['user', userRequiredPerms]]) {
+      const existing = await client.query('SELECT permissions FROM dt_roles WHERE role_key = $1 AND is_builtin = true', [roleKey])
+      if (existing.rows.length > 0) {
+        const current = existing.rows[0].permissions || []
+        const missing = requiredPerms.filter(p => !current.includes(p))
+        if (missing.length > 0) {
+          const updated = [...current, ...missing]
+          await client.query('UPDATE dt_roles SET permissions = $1 WHERE role_key = $2', [JSON.stringify(updated), roleKey])
+          console.log(`[init] 内置角色 "${roleKey}" 补充了 ${missing.length} 个缺失权限: ${missing.join(', ')}`)
+        }
+      }
+    }
   } catch (err) {
     console.error('[init] 建表失败:', err.message)
     process.exit(1)

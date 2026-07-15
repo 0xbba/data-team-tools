@@ -194,14 +194,40 @@ function parseLedgerText(text) {
   let processor = ''
   let finishTime = ''
 
-  const acceptorStage = approvalStages.find(s =>
-    s.name.includes('数据需求承接') || s.name.includes('数据承接') || s.name.includes('数据统计人员')
-  )
+  // 找到第一个未完成的环节
+  const isAcceptor = (name) => name?.includes('数据需求承接') || name?.includes('数据承接') || name?.includes('数据统计人员')
+  const isCoordinator = (name) => name?.includes('数据需求统筹') || name?.includes('需求统筹')
 
-  if (acceptorStage && acceptorStage.completedAt) {
-    processor = acceptorStage.person
-    finishTime = acceptorStage.completedAt
+  let currentIdx = -1
+  for (let i = 0; i < approvalStages.length; i++) {
+    if (!approvalStages[i].completedAt) { currentIdx = i; break }
+  }
+
+  if (currentIdx >= 0) {
+    const currentStage = approvalStages[currentIdx]
+    const prevStage = currentIdx > 0 ? approvalStages[currentIdx - 1] : null
+
+    if (isAcceptor(currentStage.name)) {
+      processor = currentStage.person
+      finishTime = '' // 传空，服务端写入时用服务器时间
+    } else if (prevStage && isAcceptor(prevStage.name)) {
+      processor = prevStage.person
+      finishTime = prevStage.completedAt
+    } else if (isCoordinator(currentStage.name)) {
+      processor = currentStage.person
+      finishTime = '' // 传空，服务端写入时用服务器时间
+    }
   } else {
+    // 所有环节都已完成
+    const lastStage = approvalStages[approvalStages.length - 1]
+    if (lastStage?.completedAt) {
+      processor = lastStage.person
+      finishTime = lastStage.completedAt
+    }
+  }
+
+  // 回退逻辑：如果审核过程未提取到 processor，用 _allPersonLines
+  if (!processor) {
     const allPersonLines = result['_allPersonLines']
     if (allPersonLines && allPersonLines.length > 0) {
       let unprocessedIdx = -1
