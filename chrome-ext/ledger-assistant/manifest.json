@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "数据需求台账助手",
   "description": "在OA数据需求页面一键解析并写入台账，登记提取记录",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "permissions": ["storage", "activeTab", "sidePanel", "tabs", "scripting"],
   "background": {
     "service_worker": "background.js"
