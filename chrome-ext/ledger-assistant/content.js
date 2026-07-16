@@ -261,4 +261,39 @@ if (isTargetPage() && window.self === window.top) {
   }
 }
 
+// ============ 快捷键监听 ============
+// 默认快捷键 Alt+Q（左手：左拇指 Alt + 左小指 Q）
+let shortcutConfig = { alt: true, ctrl: false, shift: false, key: 'q' }
+
+chrome.storage.local.get(['shortcutConfig'], (r) => {
+  if (r.shortcutConfig) shortcutConfig = r.shortcutConfig
+})
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.shortcutConfig?.newValue) {
+    shortcutConfig = changes.shortcutConfig.newValue
+  }
+})
+
+window.addEventListener('keydown', (e) => {
+  if (!isTargetPage() || window.self !== window.top) return
+
+  const cfg = shortcutConfig
+  // 单独的修饰键不触发
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+
+  if (e.altKey === !!cfg.alt &&
+      e.ctrlKey === !!cfg.ctrl &&
+      e.shiftKey === !!cfg.shift &&
+      e.key.toLowerCase() === cfg.key.toLowerCase()) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isContextValid()) return
+    // 打开侧边栏（background 处理）
+    chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL' })
+    // 通知侧边栏触发解析（如果已打开）
+    chrome.runtime.sendMessage({ type: 'TRIGGER_PARSE' })
+  }
+})
+
 } // end of __ledgerAssistantInjected guard

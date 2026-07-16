@@ -172,6 +172,20 @@
       </div>
       <div id="settings-msg-area"></div>
     </div>
+
+    <div class="section">
+      <div class="section-title">快捷键设置</div>
+      <div class="hint">在OA页面按下快捷键可快速打开侧边栏并触发解析，建议使用左手方便按的组合（如 Alt+Q）</div>
+      <div class="form-row">
+        <label>快捷键</label>
+        <input type="text" id="shortcut-input" placeholder="点击此处后按键设置" readonly style="cursor:pointer">
+      </div>
+      <div class="actions">
+        <button class="btn-default" id="btn-save-shortcut">保存</button>
+        <button class="btn-default" id="btn-reset-shortcut">恢复默认</button>
+      </div>
+      <div id="shortcut-msg-area"></div>
+    </div>
   </div>
 
   <script src="parser.js"></script>

@@ -2,8 +2,8 @@
 function $(id) { return document.getElementById(id) }
 
 function showMsg(containerId, text, type = 'info') {
-  // settings-msg-area 仍用内联方式
-  if (containerId === 'settings-msg-area') {
+  // settings-msg-area 和 shortcut-msg-area 用内联方式
+  if (containerId === 'settings-msg-area' || containerId === 'shortcut-msg-area') {
     const el = $(containerId)
     const div = document.createElement('div')
     div.className = `msg ${type}`
@@ -37,6 +37,15 @@ function showMsg(containerId, text, type = 'info') {
 // ============ 设置管理 ============
 const DEFAULT_API_URL = 'http://localhost:3456'
 const TARGET_URL_PATTERN = 'scitsmpro.paas.sc.ctc.com/aiops/app/form/'
+
+// 监听来自 content script 的快捷键触发
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'TRIGGER_PARSE') {
+    // 切换到解析 tab 并触发解析
+    document.querySelector('.tab[data-tab="parse"]').click()
+    $('btn-parse').click()
+  }
+})
 
 async function getSettings() {
   return new Promise(resolve => {
@@ -706,6 +715,8 @@ async function loadSettings() {
   if (userInfo && !$('extractor').value) {
     $('extractor').value = userInfo.displayName || userInfo.username || ''
   }
+  // 加载快捷键配置
+  loadShortcut()
 }
 
 function updateConnectionStatus(userInfo, token) {
@@ -752,6 +763,69 @@ $('btn-clear-token').addEventListener('click', async () => {
   $('api-token').value = ''
   updateConnectionStatus(null, '')
   showMsg('settings-msg-area', 'Token 已清除', 'success')
+})
+
+// ============ 快捷键设置 ============
+const DEFAULT_SHORTCUT = { alt: true, ctrl: false, shift: false, key: 'q' }
+let pendingShortcut = null
+
+function formatShortcut(cfg) {
+  const parts = []
+  if (cfg.ctrl) parts.push('Ctrl')
+  if (cfg.shift) parts.push('Shift')
+  if (cfg.alt) parts.push('Alt')
+  parts.push(cfg.key.toUpperCase())
+  return parts.join(' + ')
+}
+
+function loadShortcut() {
+  chrome.storage.local.get(['shortcutConfig'], (r) => {
+    const cfg = r.shortcutConfig || DEFAULT_SHORTCUT
+    pendingShortcut = cfg
+    $('shortcut-input').value = formatShortcut(cfg)
+  })
+}
+
+// 快捷键输入框：捕获按键组合
+$('shortcut-input').addEventListener('keydown', (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+
+  // 忽略单独的修饰键
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+
+  // 必须至少有一个修饰键
+  if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+    showMsg('shortcut-msg-area', '请配合 Ctrl/Shift/Alt 修饰键使用', 'error')
+    return
+  }
+
+  const key = e.key.toLowerCase()
+  // 只允许字母和数字
+  if (!/^[a-z0-9]$/.test(key)) {
+    showMsg('shortcut-msg-area', '只支持字母和数字键', 'error')
+    return
+  }
+
+  pendingShortcut = { ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, key }
+  $('shortcut-input').value = formatShortcut(pendingShortcut)
+  showMsg('shortcut-msg-area', '点击下方"保存"按钮生效', 'info')
+})
+
+$('btn-save-shortcut').addEventListener('click', async () => {
+  if (!pendingShortcut) {
+    showMsg('shortcut-msg-area', '请先设置快捷键', 'error')
+    return
+  }
+  await saveSettings({ shortcutConfig: pendingShortcut })
+  showMsg('shortcut-msg-area', `快捷键已保存：${formatShortcut(pendingShortcut)}`, 'success')
+})
+
+$('btn-reset-shortcut').addEventListener('click', async () => {
+  pendingShortcut = DEFAULT_SHORTCUT
+  $('shortcut-input').value = formatShortcut(DEFAULT_SHORTCUT)
+  await saveSettings({ shortcutConfig: DEFAULT_SHORTCUT })
+  showMsg('shortcut-msg-area', `已恢复默认：${formatShortcut(DEFAULT_SHORTCUT)}`, 'success')
 })
 
 // ============ 初始化 ============
