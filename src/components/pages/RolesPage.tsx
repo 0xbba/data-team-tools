@@ -65,7 +65,12 @@ export default function RolesPage({ rolesData, allPerms, fetchRoles, message }: 
         size="small"
         dataSource={rolesData}
         rowKey="id"
-        pagination={false}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50'],
+          showTotal: (t) => `共 ${t} 条`,
+        }}
         scroll={{ x: 800 }}
         columns={[
           { title: 'ID', dataIndex: 'id', key: 'id', width: 50, sorter: (a, b) => a.id - b.id },

@@ -64,7 +64,6 @@ export default function UsersPage({ usersData, rolesData, fetchUsers, currentUse
           pageSizeOptions: PAGE_SIZE_OPTIONS as unknown as (number | string)[],
           onChange: (p, ps) => { setPage(p); setPageSize(ps) },
           showTotal: (t) => `共 ${t} 条`,
-          size: isSmall ? 'small' : undefined,
         }}
         scroll={{ x: 600 }}
         columns={[
