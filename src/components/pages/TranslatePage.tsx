@@ -19,10 +19,11 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
 
   const {
     mappingData, columns, targetFileName, pasteValue, copied, copiedAlias, copiedComment,
+    copiedTableSelect, copyTableSelectResult,
     batchTransOpen, batchTransText, batchParsedResult,
     setColumns, setPasteValue, setTargetFileName, setBatchTransOpen, setBatchTransText,
     setMappingData, setOriginalDataRows,
-    handlePasteChange, handleCopyTranslation, handleCopyAlias, handleCopyComment,
+    handlePasteChange, handleCopyTranslation, handleCopyAlias, handleCopyComment, handleCopyTableSelect,
     handleExportFull,
     matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount,
     duplicateTranslations,
@@ -76,6 +77,13 @@ export default function TranslatePage({ mappingHook }: TranslatePageProps) {
               >
                 {copiedComment ? '已复制' : '复制Comment'}
               </Button>
+              {copyTableSelectResult && (
+                <Button type="dashed" size="small" onClick={handleCopyTableSelect}
+                  icon={copiedTableSelect ? <CheckOutlined style={{ fontSize: 14 }} /> : <TableOutlined style={{ fontSize: 14 }} />}
+                >
+                  {copiedTableSelect ? '已复制' : '复制a表'}
+                </Button>
+              )}
               <Button type="dashed" size="small" onClick={handleExportFull} disabled={translatedCount === 0 || targetFileName === '手动粘贴'}
                 icon={<DownloadOutlined style={{ fontSize: 14 }} />}
               >

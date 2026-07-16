@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import type React from 'react'
 import { Api } from '../api'
 import { loadMappingFromStorage, saveMappingToStorage } from '../utils/storage'
-import { buildTranslatedColumns, displayTranslation, parsePastedHeaders, parseMappingXLSX } from '../utils/translation'
+import { buildTranslatedColumns, displayTranslation, parsePastedHeaders, parseMappingXLSX, generateCopyTableSelect } from '../utils/translation'
 import { timestamp } from '../utils/format'
 import * as XLSX from 'xlsx'
 import type { MappingItem, ColumnData, BatchParseItem } from '../types'
@@ -57,6 +57,11 @@ export interface UseMappingReturn {
   handleBatchTransCopy: () => void
   handleBatchTransConfirm: () => void
 
+  // 复制 a 表
+  copyTableSelectResult: string | null
+  copiedTableSelect: boolean
+  handleCopyTableSelect: () => void
+
   // 导出
   handleExportFull: () => void
 
@@ -78,6 +83,7 @@ export function useMapping(
   const [batchTransOpen, setBatchTransOpen] = useState(false)
   const [batchTransText, setBatchTransText] = useState('')
   const [copiedAlias, setCopiedAlias] = useState(false)
+  const [copiedTableSelect, setCopiedTableSelect] = useState(false)
   // 存储导入文件的原始数据行（不含表头），导出时保留
   const [originalDataRows, setOriginalDataRows] = useState<any[][]>([])
 
@@ -274,6 +280,18 @@ export function useMapping(
     setCopiedComment(true); setTimeout(() => setCopiedComment(false), 1500)
   }, [columns, pasteValue, targetFileName])
 
+  // 复制 a 表 SELECT：从 CTAS 语句生成 select a.field1, a.field2 from table a
+  const copyTableSelectResult = useMemo(() => generateCopyTableSelect(pasteValue), [pasteValue])
+
+  const handleCopyTableSelect = useCallback(() => {
+    const sql = copyTableSelectResult
+    if (!sql) return
+    navigator.clipboard.writeText(sql).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = sql; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    })
+    setCopiedTableSelect(true); setTimeout(() => setCopiedTableSelect(false), 1500)
+  }, [copyTableSelectResult])
+
   // 计算属性：基于是否有对照记录判断匹配状态，而非翻译值是否和原字段不同
   const matchedColumns = useMemo(() => columns.filter(c => c.alternatives.length === 1), [columns])
   const multiMatchColumns = useMemo(() => columns.filter(c => c.alternatives.length > 1), [columns])
@@ -375,10 +393,11 @@ export function useMapping(
 
   return {
     mappingData, columns, targetFileName, pasteValue, copied, batchTransOpen, batchTransText, copiedAlias, copiedComment,
+    copiedTableSelect, copyTableSelectResult,
     setMappingData, setColumns, setTargetFileName, setPasteValue, setCopied, setBatchTransOpen, setBatchTransText, setCopiedAlias, setOriginalDataRows,
     fetchDbMapping, persistMapping,
     handleImportFile, handlePasteChange, selectAlternative, updateTranslation, canSaveCol, saveToMapping, saveAllNewToMapping,
-    handleCopyTranslation, handleCopyAlias, handleCopyComment,
+    handleCopyTranslation, handleCopyAlias, handleCopyComment, handleCopyTableSelect,
     matchedColumns, multiMatchColumns, unmatchedColumns, translatedCount, newMappingCount, duplicateTranslations,
     batchParsedResult, handleBatchTransCopy, handleBatchTransConfirm,
     handleExportFull,

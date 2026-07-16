@@ -31,6 +31,76 @@ export function extractSQLFieldName(fragment: string): string {
   return m ? m[1] : fragment.trim()
 }
 
+// ============ 复制 a 表 SELECT 生成 ============
+/**
+ * 解析 CREATE TABLE ... AS SELECT 语句，生成复制 a 表的 SELECT。
+ * 将原始字段表达式替换为 a.alias，保留原始换行结构。
+ */
+export function generateCopyTableSelect(text: string): string | null {
+  const raw = text.trim()
+
+  // 检测 CREATE TABLE ... AS SELECT
+  const ctasMatch = raw.match(/\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?([\w.]+)\s+as\s+select\b/i)
+  if (!ctasMatch) return null
+  const tableName = ctasMatch[1]
+
+  // 去掉行注释
+  const cleaned = raw.replace(/--[^\n]*/g, '')
+
+  // 截取 SELECT 到外层 FROM 之间的字段列表
+  const afterSelect = cleaned.substring(cleaned.search(/\bselect\b/i) + 6)
+  let depth = 0
+  let cutPos = afterSelect.length
+  for (let i = 0; i < afterSelect.length; i++) {
+    if (afterSelect[i] === '(') { depth++; continue }
+    if (afterSelect[i] === ')') { depth--; continue }
+    if (depth === 0 && /^\bfrom\b/i.test(afterSelect.substring(i))) { cutPos = i; break }
+  }
+  const fieldList = afterSelect.substring(0, cutPos)
+  if (!fieldList.trim()) return null
+
+  // 按顶层逗号分割字段
+  const fields: string[] = []
+  let start = 0, d = 0, caseD = 0
+  for (let i = 0; i < fieldList.length; i++) {
+    if (fieldList[i] === '(') { d++; continue }
+    if (fieldList[i] === ')') { d--; continue }
+    if (d === 0) {
+      const rest = fieldList.substring(i)
+      if (/^\bCASE\b/i.test(rest)) { caseD++; i += 3; continue }
+      if (caseD > 0 && /^\bEND\b/i.test(rest)) { caseD--; i += 2; continue }
+    }
+    if (fieldList[i] === ',' && d === 0 && caseD === 0) {
+      const seg = fieldList.substring(start, i).trim()
+      if (seg) fields.push(seg)
+      start = i + 1
+    }
+  }
+  const lastSeg = fieldList.substring(start).trim()
+  if (lastSeg) fields.push(lastSeg)
+  if (fields.length === 0) return null
+
+  // 每个字段一行：a.alias，行尾逗号（最后一行除外）
+  const aliases = fields.map(extractFieldAlias)
+  const lines = aliases.map((a, i) => `  a.${a}${i < aliases.length - 1 ? ',' : ''}`)
+  return `select \n${lines.join('\n')}\nfrom ${tableName} a`
+}
+
+/** 从字段表达式中提取别名（复用 parsePastedHeaders 的逻辑） */
+function extractFieldAlias(p: string): string {
+  const asMatch = p.match(/\bAS\s+["`]?(\w+)["`]?\s*$/i)
+  if (asMatch) return asMatch[1]
+  const endAlias = p.match(/\bEND\s+(\w+)\s*$/i)
+  if (endAlias) return endAlias[1]
+  const parenAlias = p.match(/\)\s+(\w+)\s*$/)
+  if (parenAlias) return parenAlias[1]
+  const spaceAlias = p.match(/^["`]?[\w.]+["`]?\s+(\w+)\s*$/)
+  if (spaceAlias && !/^(case|when|then|else|end|from|where|and|or|not|in|on|left|right|join|inner|outer|full|cross|as|between|like|is|null|exists|group|having|order|limit|union|all|distinct|select|into|values|set|update|delete|insert|create|drop|alter|table|index|view)$/.test(spaceAlias[1].toLowerCase())) {
+    return spaceAlias[1]
+  }
+  return stripDotPrefix(p.trim())
+}
+
 /** 解析粘贴文本为字段名数组（支持SELECT/Tab/逗号/空格/换行） */
 export function parsePastedHeaders(text: string): string[] {
   let raw = text.trim()
